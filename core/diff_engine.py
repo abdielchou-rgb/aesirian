@@ -13,7 +13,10 @@ LLM 不可用时全部优雅降级为规则驱动，沿用项目「纯规则优�
 from __future__ import annotations
 
 import re
+import threading
+import time
 import uuid
+from collections import Counter
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -21,6 +24,65 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:  # 仅类型标注用；运行时在函数内延迟导入避免循环依赖
     from core.four_cards import FourCardProject
+
+# ═══════════════════════════════════════════
+# P3-12 (2026-09-07): diff 决策埋点（进程内日志 + 聚合统计）
+# ═══════════════════════════════════════════
+# 目标：把"diff 接受率 / 拒绝率 / 来源→去向分布"变成可查数据，供周级门禁/产品
+# 调参（避免靠感觉判断"作者是否信任 AI 提案"）。进程内 append-only 日志即可——
+# 不落库，避免给四卡审查会话引入持久化负担。需要跨进程/跨重启聚合时再接 store。
+_DECISION_LOCK = threading.Lock()
+_DECISION_LOG: list[dict] = []
+
+
+def _record_decision(diff: Diff, action: str, accepted: bool, ts: float | None = None) -> None:
+    """记录一次作者对提案的裁决（append-only，带来源/去向/耗时标签）。"""
+    global _DECISION_LOG
+    entry = {
+        "diff_id": diff.id,
+        "action": action,  # accept / reject
+        "accepted": accepted,
+        "source_card": getattr(diff, "source_card", ""),
+        "target_card": getattr(diff, "target_card", ""),
+        "field": getattr(diff, "field", ""),
+        "ts": ts if ts is not None else time.time(),
+    }
+    with _DECISION_LOCK:
+        _DECISION_LOG.append(entry)
+        # 防无限增长：单进程内保留最近 5000 条足够
+        if len(_DECISION_LOG) > 5000:
+            _DECISION_LOG = _DECISION_LOG[-5000:]
+
+
+def decision_stats() -> dict:
+    """diff 裁决聚合统计——供 MCP/前端/周级门禁调参。"""
+    with _DECISION_LOCK:
+        log = list(_DECISION_LOG)
+    total = len(log)
+    if not total:
+        return {"total": 0, "accept_rate": None, "reject_rate": None}
+    accepts = sum(1 for e in log if e["accepted"])
+    by_source = Counter(e["source_card"] or "(未知)" for e in log)
+    by_target = Counter(e["target_card"] or "(未知)" for e in log)
+    by_field = Counter(e["field"] or "(整卡)" for e in log)
+    return {
+        "total": total,
+        "accept": accepts,
+        "reject": total - accepts,
+        "accept_rate": round(accepts / total, 3),
+        "reject_rate": round(1 - accepts / total, 3),
+        "by_source_card": dict(by_source),
+        "by_target_card": dict(by_target),
+        "by_field": dict(by_field),
+    }
+
+
+def reset_decision_log() -> None:
+    """清空埋点（测试用）。"""
+    global _DECISION_LOG
+    with _DECISION_LOCK:
+        _DECISION_LOG = []
+
 
 # ═══════════════════════════════════════════
 # §2 数据类型
@@ -673,8 +735,10 @@ def apply_diff(project, diff_id: str, accept: bool = True) -> bool:
         if accept and d.status == DiffStatus.PENDING:
             _apply_one(project, d)
             d.accept()
+            _record_decision(d, action="accept", accepted=True)
         elif not accept:
             d.reject()
+            _record_decision(d, action="reject", accepted=False)
         return True
     return False
 

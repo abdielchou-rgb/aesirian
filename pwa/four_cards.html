@@ -79,6 +79,7 @@ button:disabled{opacity:.4;cursor:not-allowed}
       <input type="text" id="mcpUrl" value="http://127.0.0.1:8765/mcp" placeholder="MCP HTTP 端点" style="max-width:320px">
       <button id="btnPing">测试连接</button>
       <button id="btnTrace" title="把本页埋点日志打到 console">查看埋点(<span id="traceCnt">0</span>)</button>
+      <button id="btnStats" title="查看 diff 接受/拒绝统计（P3-12 provenance）">决策统计</button>
     </div>
     <div class="hint">前置：本机已启动 <code>python mcp_server_fast.py --transport http</code>。锚级变更将触发其余卡联动提案，接受/拒绝后才落地（永不静默改写）。演示快照含 3 条待批准样例，直接点接受/拒绝即可体验提案制。</div>
   </div>
@@ -107,6 +108,8 @@ button:disabled{opacity:.4;cursor:not-allowed}
       <div class="btnbar"><button id="btnPropSample" disabled>编辑试样后反向提案</button></div>
       <div class="muted" id="diffHint" style="margin-top:8px"></div>
       <div id="diffBox"></div>
+      <!-- P3-12: provenance 视图——AI 提案来源/去向 + 作者决策统计（非静默改写可追溯） -->
+      <div id="provenanceBox" style="display:none;margin-top:10px"></div>
     </div>
   </div>
 </div>
@@ -245,7 +248,10 @@ function updateStates() {
   $("chState").textContent = "章节 · " + (project.chapters||[]).length + " 拍";
 }
 function renderDiffs(diffs) {
-  $("diffBox").innerHTML = diffs.filter(d=>d.status==="pending").map(d=>`
+  const pending = diffs.filter(d=>d.status==="pending");
+  const resolved = diffs.filter(d=>d.status!=="pending");
+  $("diffBox").innerHTML =
+    (pending.map(d=>`
     <div class="diff" id="diff_${d.id}">
       <b>${esc(d.target_card)} · ${esc(d.field)}</b>（因 ${esc(d.source_card||"-")} 变更）
       <div class="why">${esc(d.rationale)}</div>
@@ -254,7 +260,10 @@ function renderDiffs(diffs) {
         <button class="primary" onclick="rule('${d.id}','accept')">接受</button>
         <button onclick="rule('${d.id}','reject')">拒绝</button>
       </div>
-    </div>`).join("") || `<div class="muted">无待批准 diff</div>`;
+    </div>`).join("") || `<div class="muted">无待批准 diff</div>`) +
+    (resolved.length ? `<div style="margin-top:8px;font-size:.72rem;color:var(--text3)">已裁决（provenance）：
+      ${resolved.map(d=>`<span class="dot ${d.status==='accepted'?'ok':'bad'}"></span>${esc(d.source_card||'?')}→${esc(d.target_card)}·${esc(d.field)} ${d.status==='accepted'?'✓接受':'✗拒绝'}</span>`).join("　")}
+    </div>` : "");
 }
 function drawCurve() {
   const svg = $("curve"); svg.innerHTML = "";
@@ -361,6 +370,33 @@ $("btnTrace").onclick=()=>{
   try { const arr=JSON.parse(localStorage.getItem(TRACE_KEY)||"[]"); console.table(arr); alert("已输出 "+arr.length+" 条埋点到 console (F12)"); }
   catch(e){ alert("读取埋点失败: "+e.message); }
 };
+/* P3-12: provenance/决策统计——展示 diff 接受率、来源→去向分布、当前提案状态。
+   数据来自 mcp_server_fast 的 four_cards_stats 工具（进程内决策日志）。 */
+async function loadStats(){
+  const box=$("provenanceBox"); box.style.display="block";
+  box.innerHTML="<span class='spin'>⏳</span> 统计加载中…";
+  try {
+    const st = await callTool("four_cards_stats", {});
+    const pend = (project?.pending_diffs||[]).filter(d=>d.status==="pending").length;
+    const done = (project?.pending_diffs||[]).filter(d=>d.status!=="pending").length;
+    let html = `<div style="border:1px solid var(--border);border-radius:8px;padding:8px 10px;font-size:.76rem;background:var(--elevated)">
+      <b>📊 决策统计（进程内）</b><br>`;
+    if (st.total) {
+      html += `共 <b>${st.total}</b> 次裁决 · 接受率 <b>${(st.accept_rate*100).toFixed(0)}%</b>
+        (接受 ${st.accept} / 拒绝 ${st.reject})<br>`;
+      const src = Object.entries(st.by_source_card||{}).map(([k,v])=>`${k}→${v}`).join("、");
+      if (src) html += `来源卡分布：${src}<br>`;
+      const tgt = Object.entries(st.by_target_card||{}).map(([k,v])=>`${k}×${v}`).join("、");
+      if (tgt) html += `去向卡分布：${tgt}<br>`;
+    } else {
+      html += "尚无裁决——在本页接受/拒绝任意提案后刷新可见。<br>";
+    }
+    html += `<span class="muted">当前项目：${pend} 待批准 / ${done} 已裁决。接受即落地，拒绝不写回（永不静默改写）。</span>
+      </div>`;
+    box.innerHTML = html;
+  } catch(e){ box.innerHTML="<span class='bad' style='color:var(--bad)'>统计加载失败: "+esc(e.message||e)+"</span>"; }
+}
+$("btnStats").onclick=loadStats;
 $("btnPropBio").onclick=()=>doEdit("biographies","btnPropBio");
 $("btnPropFw").onclick=()=>doEdit("framework","btnPropFw");
 $("btnPropCh").onclick=()=>doEdit("chapters","btnPropCh");

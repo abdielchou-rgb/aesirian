@@ -79,6 +79,12 @@ class DemoFourCardsInput(BaseModel):
     pass
 
 
+class FourCardsStatsInput(BaseModel):
+    """四卡裁决统计（P3-12）——无入参。"""
+
+    pass
+
+
 # ─── Helper Functions ───
 
 
@@ -281,6 +287,17 @@ async def edit_four_cards(input: EditFourCardsInput) -> dict:
         "pending": sum(1 for d in project.pending_diffs if d.status == "pending"),
         "project": project.model_dump(),
     }
+
+
+@mcp.tool()
+async def four_cards_stats(input: FourCardsStatsInput) -> dict:
+    """
+    P3-12: diff decision telemetry (accept/reject rate, source->target/field
+    distribution). Author-trust signal for weekly gate/product tuning.
+    """
+    from core.diff_engine import decision_stats
+
+    return decision_stats()
 
 
 @mcp.tool()
