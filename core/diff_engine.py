@@ -365,13 +365,19 @@ def _llm_forward_derive(sample_text: str):
 
 
 def forward_derive(sample_text: str):
-    """阶段 A 主入口：LLM 增强，不可用时规则降级。返回 FourCardProject。"""
+    """阶段 A 主入口：LLM 增强，不可用/退化时规则降级。返回 FourCardProject。
+
+    判定：仅当 LLM 结构化输出经 _drop_shell_biographies 后仍含 ≥1 个有效人物卡时才采纳，
+    否则视为退化输出（空壳/空数组）并回落到规则路径，保证返回结构完整可用。
+    """
     if not sample_text or not sample_text.strip():
         from core.four_cards import FourCardProject
         return FourCardProject.empty()
     project = _llm_forward_derive(sample_text)
     if project is not None:
-        return _drop_shell_biographies(project)
+        project = _drop_shell_biographies(project)
+        if project.biographies:
+            return project
     return _rule_forward_derive(sample_text)
 
 
