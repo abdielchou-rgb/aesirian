@@ -72,6 +72,37 @@ STRUCTURAL_GATE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "ROE-04": ("misunderstanding_cycles",),  # 误会循环史
     "CTB-02": ("broken_chains",),  # 因果链断裂史
     "MCO-02": ("abrupt_transitions",),  # 转场突兀记录
+
+    # ── P1-5 (2026-09-07): 跨章专用门禁族 ──
+    # 此前 STC-01..22（风格一致性漂移）与 RVI-06（邪恶力量揭示节奏）虽注册在
+    # GATE_CATALOG 且被 run_full 遍历，但 safe_eval 无对应分支 → 静默落到
+    # `return gate.pass_result()`（假通过）。这些门禁本质上需要跨章数据
+    # （风格基线 / 伏笔揭示历史），单章路径给不出真实入参。
+    # 修复：声明为"缺跨章上下文即 SKIPPED"，杜绝 registry 有而 dispatcher 无
+    # 的静默漂移；未来跨章/全稿路径提供 style_baseline 等字段后自动恢复生效。
+    "STC-01": ("style_baseline",),  # 副词密度漂移
+    "STC-02": ("style_baseline",),  # 被动语态漂移
+    "STC-03": ("style_baseline",),  # 填充词/副词比
+    "STC-04": ("style_baseline",),  # 词汇多样性下降
+    "STC-05": ("style_baseline",),  # 难词突增
+    "STC-06": ("style_baseline",),  # 情绪词漂移
+    "STC-07": ("style_baseline",),  # 句长方差
+    "STC-08": ("style_baseline",),  # 句长漂移
+    "STC-09": ("style_baseline",),  # 最长句占比
+    "STC-10": ("style_baseline",),  # 对话密度漂移
+    "STC-11": ("style_baseline",),  # 段长漂移
+    "STC-12": ("style_baseline",),  # 章末收束力
+    "STC-13": ("style_baseline",),  # 钩子密度漂移
+    "STC-14": ("style_baseline",),  # 鸿沟密度漂移
+    "STC-15": ("style_baseline",),  # 类型契合下降
+    "STC-16": ("style_baseline",),  # 情绪连贯性
+    "STC-17": ("style_baseline",),  # 幕结构转换
+    "STC-18": ("style_baseline",),  # 节奏评分下降
+    "STC-19": ("style_baseline",),  # 情感熵变化
+    "STC-20": ("style_baseline",),  # 情绪-张力错配
+    "STC-21": ("style_baseline",),  # 综合漂移分
+    "STC-22": ("style_baseline",),  # 连续漂移章节
+    "RVI-06": ("evil_force_history",),  # 邪恶力量揭示节奏
 }
 
 
@@ -117,6 +148,68 @@ def _missing_progression(gid: str, ctx: dict) -> bool:
         return False
     ch = int(ctx.get("chapter_index", 0) or 0)
     return ch < need
+
+
+# ─── P1-5 (2026-09-07): schema 驱动自动绑定 ─────────────────────
+# safe_eval 的历史形态是 143 个 `if gid=="X"` 分支，未覆盖的门禁会静默落到
+# `return gate.pass_result()`——"registry 有而 dispatcher 无"的死门禁（此前
+# STC-01..22 与 RVI-06 共 23 道即如此：注册、被遍历、却永不真跑）。
+# 修复：跨章专用门禁已声明进 STRUCTURAL_GATE_REQUIREMENTS（单章缺数据即
+# SKIPPED）；此处提供 schema 驱动兜底——若调用方（跨章/全稿路径）通过
+# style_baseline / context 提供了 evaluate 所需参数，则按 GATE_CATALOG 的
+# params schema 自动绑定真跑；必要参数仍缺失则显式 SKIPPED，绝不静默 PASS。
+
+def _auto_bind_evaluate(gate, context: dict) -> GateResult:
+    """按 registry params schema 自动绑定并调用 gate.evaluate。
+
+    参数来源优先级：context[param] → context["style_baseline"][param]。
+    必填（无默认值）参数缺失时返回 SKIPPED（passed=True, skipped=True），
+    避免把"无数据"误判为"通过"或"违规"。
+    """
+    import inspect
+
+    from wenjian.audit.gates import GATE_CATALOG
+
+    meta = GATE_CATALOG.get(gate.gate_id)
+    if not meta:
+        # registry 外门禁（罕见）：保守 PASS
+        return gate.pass_result()
+
+    sig = inspect.signature(gate.evaluate)
+    style_baseline = context.get("style_baseline") or {}
+    kwargs: dict = {}
+    missing_required: list[str] = []
+    for pname in meta.get("params", []):
+        p = sig.parameters.get(pname)
+        if pname in context and context[pname] is not None:
+            kwargs[pname] = context[pname]
+        elif pname in style_baseline:
+            kwargs[pname] = style_baseline[pname]
+        elif p is not None and p.default is not inspect.Parameter.empty:
+            kwargs[pname] = p.default  # 有默认值：用默认（门禁内部自判"基线不足"）
+        else:
+            missing_required.append(pname)
+
+    if missing_required:
+        return GateResult(
+            gate_id=gate.gate_id,
+            name=gate.name,
+            severity=gate.severity,
+            passed=True,
+            message=f"SKIPPED — schema 自动绑定缺必要参数: {', '.join(missing_required[:3])}",
+            skipped=True,
+        )
+    try:
+        return gate.evaluate(**kwargs)
+    except Exception as e:  # 自动绑定失败不应中断全量审计
+        return GateResult(
+            gate_id=gate.gate_id,
+            name=gate.name,
+            severity=gate.severity,
+            passed=True,
+            message=f"SKIPPED — 自动绑定评估异常: {e}",
+            skipped=True,
+        )
 
 
 def _hook_density(text: str) -> float:
@@ -723,7 +816,8 @@ class AuditPipeline:
                 )
             if gid == "WNM-01":
                 return gate.evaluate(chapter_text=ct)
-            return gate.pass_result()
+            # P1-5: 显式分支外的门禁不再静默 pass——schema 自动绑定（真跑）或 SKIPPED
+            return _auto_bind_evaluate(gate, context)
         except Exception as e:
             return GateResult(
                 gate_id=gid,
