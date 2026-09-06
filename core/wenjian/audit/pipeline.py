@@ -10,7 +10,56 @@ from __future__ import annotations
 
 from wenjian.audit.gates import ALL_GATES, get_gate
 from wenjian.genres import GenreProfile, get_profile
-from wenjian.models import AuditReport, GateResult
+from wenjian.models import AuditReport, GateResult, GateSeverity
+
+# ─── P3-11 (2026-09-07): 装饰性门禁降噪 ────────────────────────
+# 内部门禁自证报告 §4.2 列出的高基线噪音、对缺陷无区分度的门禁（干净文本即 warn、
+# 植入样本与基线响应几乎一致）。这些门禁多面向长篇/全稿节奏，对 2000 字内的短章
+# 样张天然误报（如 BRK-03 短章、PRP-02 首钩 543 字 vs 150 规则、LANG-01 MRU 0/5）。
+# 降噪策略（遵循报告建议"仅当章长 ≥2000 字或提供跨章字段时启用"）：
+#   短章（<2000 字）→ 这些门禁的 WARN 失败降为 INFO（记录但不拉高报告状态）；
+#   长章/提供跨章字段 → 恢复完整 WARN/BLOCK 语义，不损失长篇能力。
+NOISE_GATES: frozenset[str] = frozenset(
+    {
+        # 短章主题：基线即命中，无净区分度
+        "BRK-03", "STR-06", "QLT-04", "BRK-01B",
+        # 情绪/钩子主题
+        "NEU-01", "NEU-02", "NEU-03", "ARC-02", "ARC-03", "ARC-07",
+        "CTP-02", "SCQ-04",
+        # 对话主题（基线即命中）
+        "DLG-02", "DLG-03", "DLG-06", "DLG-07", "INR-01",
+        # 悬念主题（基线即命中）
+        "SPN-02", "QLT-05", "DRM-01",
+        # 其他误报源
+        "PRP-02", "LANG-01",
+    }
+)
+SHORT_CHAPTER_CHAR_THRESHOLD = 2000
+
+
+def _denoise_for_short_chapter(result: GateResult, char_count: int) -> GateResult:
+    """短章装饰性门禁降噪：WARN 失败 → INFO（仅记录，不拉高报告状态）。
+
+    返回原 result 的副本（severity 降级）；长章/非噪音门禁原样返回。
+    设计保守：只降 WARN 失败，不降 BLOCK、不降 SKIPPED、不动 PASS。
+    """
+    if (
+        result.gate_id in NOISE_GATES
+        and result.severity == GateSeverity.WARN
+        and not result.passed
+        and (char_count or 0) < SHORT_CHAPTER_CHAR_THRESHOLD
+    ):
+        return GateResult(
+            gate_id=result.gate_id,
+            name=result.name,
+            severity=GateSeverity.INFO,
+            passed=result.passed,
+            message=result.message,
+            details=result.details,
+            score=result.score,
+            skipped=result.skipped,
+        )
+    return result
 
 HOOK_KEYWORDS = [
     "突然",
@@ -103,6 +152,15 @@ STRUCTURAL_GATE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "STC-21": ("style_baseline",),  # 综合漂移分
     "STC-22": ("style_baseline",),  # 连续漂移章节
     "RVI-06": ("evil_force_history",),  # 邪恶力量揭示节奏
+
+    # ── P3-11 (2026-09-07): 上下文饥饿误 BLOCK 治理（内部自证报告 §4.1）──
+    # 干净第 1 章被判 BLOCK 的两大元凶：
+    # - PLE-02: 单章 gap_densities[-1]>3 被当作"连续压抑 9 章"——需跨章压抑史
+    # - G3-01: 缺 first_conflict_position 时默认 99999 → 对几乎所有纯文本 BLOCK；
+    #   需显式冲突锚点（EntityExtractor/LLM 标注）才评估。
+    # 单章缺这些字段 → SKIPPED（不误报），跨章/标注路径提供后自动恢复。
+    "PLE-02": ("emotion_history",),
+    "G3-01": ("first_conflict_position",),
 }
 
 
@@ -883,7 +941,8 @@ class AuditPipeline:
                     passed=False,
                     message=f"evaluation error: {e}",
                 )
-            report.add(result)
+            # P3-11: 短章装饰性门禁 WARN 失败降为 INFO（不拉高报告状态）
+            report.add(_denoise_for_short_chapter(result, ctx.get("char_count", 0) or 0))
         return report
 
     def summarize(self, report: AuditReport) -> dict:

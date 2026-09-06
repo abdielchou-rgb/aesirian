@@ -12,6 +12,7 @@ from . import anthropic, base, ollama, openai
 class GateSeverity(str, Enum):  # noqa: UP042  # StrEnum 需 3.11+，CI 矩阵含 3.10
     BLOCK = "block"
     WARN = "warn"
+    INFO = "info"  # P3-11: 装饰性门禁降级位——对缺陷无区分度的门禁，失败不拉高报告状态
     PASS = "pass"
 
 
@@ -56,6 +57,10 @@ class AuditReport:
 
     def add(self, result: GateResult):
         self.gate_results.append(result)
+        # P3-11: INFO 级失败（装饰性门禁降噪）不改变报告状态——仅记录供参考，
+        # 不把"对缺陷无区分度的基线噪音"误判为全章告警/拦截。
+        if result.severity == GateSeverity.INFO:
+            return
         if result.severity == GateSeverity.BLOCK and result.passed is False:
             self.overall_status = "block"
         elif (
