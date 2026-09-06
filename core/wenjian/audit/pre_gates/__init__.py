@@ -13,10 +13,16 @@ from wenjian.models import GateResult, GateSeverity
 
 
 class PreGateBase:
-    """写前门禁基类。"""
+    """写前门禁基类。
+
+    契约说明（P3-12 清理，2026-09-07）：子类以**类属性**直接声明
+    gate_id / name / description（见 PG01-PG06），本基类无需强制抽象。
+    下方占位仅供文档/类型提示——若未来接入统一注册表需要实例级属性，
+    再升级为真正的 ABC 抽象。
+    """
 
     @property
-    def gate_id(self) -> str:
+    def gate_id(self) -> str:  # 子类以类属性覆盖，无需调用本实现
         raise NotImplementedError
 
     @property
