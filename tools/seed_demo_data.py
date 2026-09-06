@@ -7,7 +7,12 @@
 4. 输出 pwa/demo/demo_luoyang_project.json（four_cards.html「加载演示」按钮读取）；
 5. 将角色 beliefs/goals 种子写入默认 DB（aesirian.db），补齐演示项目空 beliefs/goals 数据洞。
 
-用法: python tools/seed_demo_data.py
+用法: python tools/seed_demo_data.py [--force]
+说明:
+  - demo JSON (pwa/demo/demo_luoyang_project.json) 是 curated 演示资产（多角色、hand-maintained，
+    见 core/diff_engine.py _drop_shell_biographies 注释）。默认若已存在则跳过不覆盖；
+    --force 时用当前 ch1 重新生成（forward_derive：有 LLM key 走高质路径，否则规则降级）。
+  - DB 不存在时自动跳过 DB beliefs/goals 种子（fresh clone 场景）。
 只生成种子数据与演示 JSON，不修改 diff_engine / four_cards 引擎逻辑。
 """
 from __future__ import annotations
@@ -152,11 +157,15 @@ def seed_db_beliefs_goals(ch1: str) -> dict:
 
 def main() -> None:
     ch1 = load_chapter1()
-    p = build_demo_project(ch1)
-    os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
-    with open(OUT_JSON, "w", encoding="utf-8") as f:
-        json.dump(p.model_dump(), f, ensure_ascii=False, indent=1)
-    print("demo json written:", OUT_JSON)
+    if os.path.exists(OUT_JSON) and "--force" not in sys.argv:
+        print("demo json 已存在，保留 curated 演示资产:", OUT_JSON)
+        print("提示: 用当前 ch1 重新生成 -> python tools/seed_demo_data.py --force")
+    else:
+        p = build_demo_project(ch1)
+        os.makedirs(os.path.dirname(OUT_JSON), exist_ok=True)
+        with open(OUT_JSON, "w", encoding="utf-8") as f:
+            json.dump(p.model_dump(), f, ensure_ascii=False, indent=1)
+        print("demo json written:", OUT_JSON)
     seeded = seed_db_beliefs_goals(ch1)
     print("db seeded:", seeded)
 
