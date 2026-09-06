@@ -1033,7 +1033,7 @@ def _extract_discourse(text: str) -> tuple[DiscourseFingerprint, list[int]]:
     )
 
     # ── 过渡词偏好 ────────────────────────────────────────────────────
-    transition_counts = Counter()
+    transition_counts: Counter[str] = Counter()
     for tw in TRANSITION_WORDS:
         cnt = text.count(tw)
         if cnt > 0:
@@ -1093,7 +1093,7 @@ def _extract_narrative(text: str, chapters: list[dict]) -> NarrativeFingerprint:
 
     # 意象复用间隔
     if len(images) > 1:
-        positions = {}
+        positions: dict[str, int] = {}
         intervals = []
         for i, img in enumerate(images):
             if img in positions:
@@ -1623,7 +1623,7 @@ def _compare_dimensions(
     threshold: float = 0.15,
 ) -> list[dict]:
     """逐维度对比两个指纹。"""
-    dims = []
+    dims: list[dict] = []
 
     t = target
     b = baseline
@@ -1779,7 +1779,7 @@ def _list_overlap(a: list[tuple], b: list[tuple], top_n: int = 20) -> float:
 
 def _group_dims_by_layer(dims: list[dict]) -> dict:
     """按层分组维度。"""
-    groups = {"L1": [], "L2": [], "L3": [], "L4": []}
+    groups: dict[str, list[dict]] = {"L1": [], "L2": [], "L3": [], "L4": []}
     for d in dims:
         groups[d["layer"]].append(d)
     return groups
@@ -1814,7 +1814,7 @@ def _merge_fingerprints(
     merged.lexical.unique_char_ratio = _robust_mean([fp.lexical.unique_char_ratio for fp in fps])
 
     # 虚词谱合并
-    all_fw = set()
+    all_fw: set[str] = set()
     for fp in fps:
         all_fw.update(fp.lexical.function_word_spectrum.keys())
     for fw in all_fw:
@@ -1833,7 +1833,7 @@ def _merge_fingerprints(
         [fp.syntactic.total_punctuation_ratio for fp in fps]
     )
 
-    all_punct = set()
+    all_punct: set[str] = set()
     for fp in fps:
         all_punct.update(fp.syntactic.punctuation_spectrum.keys())
     for p in all_punct:

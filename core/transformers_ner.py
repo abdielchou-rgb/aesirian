@@ -16,6 +16,7 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass, field
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -125,10 +126,10 @@ class _NERPipeline:
     """懒加载 NER pipeline，首次使用时才下载模型"""
 
     _instance = None
-    _pipeline = None
+    _pipeline: Any = None  # transformers pipeline 或 None（懒加载后可能仍为 None）
     _model_name = ""
     _initialized = False
-    _init_error = None
+    _init_error: str | None = None
 
     def __new__(cls):
         if cls._instance is None:
@@ -151,7 +152,8 @@ class _NERPipeline:
             for model_name in NER_MODEL_CANDIDATES:
                 try:
                     logger.info(f"Loading NER model: {model_name}")
-                    self._pipeline = pipeline(
+                    # "ner" 是 stub 中 token-classification 的运行时间名 → 无匹配重载
+                    self._pipeline = pipeline(  # type: ignore[call-overload]
                         "ner",
                         model=model_name,
                         tokenizer=model_name,

@@ -205,7 +205,7 @@ def get_profile(genre_id: str = None, platform: str = None) -> GenreProfile:
         "publication_novel": "publication_literary",
         "streaming_first": "streaming_first",
     }
-    fallback_id = platform_map.get(platform, "xianxia_modern")
+    fallback_id = platform_map.get(platform or "", "xianxia_modern")
     return GENRE_PROFILES.get(fallback_id, GENRE_PROFILES["xianxia_modern"])
 
 

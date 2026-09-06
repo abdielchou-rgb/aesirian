@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """Scene-Sequel 结构门禁 -- 基于 Dwight Swain / Jack Bickham 的场景理论。"""
 
 from wenjian.models import GateSeverity

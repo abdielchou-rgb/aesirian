@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """质量检测门禁 — 灌水检测 + 读者情绪曲线。"""
 
 from wenjian.models import GateSeverity

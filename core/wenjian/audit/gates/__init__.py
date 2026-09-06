@@ -352,20 +352,22 @@ ALL_GATES.update(
     }
 )
 
-BLOCKING_GATES = {k: v for k, v in ALL_GATES.items() if v().severity.value == "block"}
+BLOCKING_GATES = {
+    k: v for k, v in ALL_GATES.items() if v().severity.value == "block"  # type: ignore[abstract]
+}  # 注册表只存具体门禁类；静态类型收窄到抽象基类
 
 
 def get_gate(gate_id: str) -> BaseGate:
     cls = ALL_GATES.get(gate_id)
     if cls is None:
         raise ValueError(f"Unknown gate: {gate_id}")
-    return cls()
+    return cls()  # type: ignore[abstract]  # ALL_GATES 值均为具体门禁子类
 
 
 def list_gates(severity: str = None) -> list[dict]:
     results = []
     for cls in ALL_GATES.values():
-        g = cls()
+        g = cls()  # type: ignore[abstract]  # ALL_GATES 值均为具体门禁子类
         if severity and g.severity.value != severity:
             continue
         results.append(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """人物关系网门禁 — John Truby《The Anatomy of Story》。
 
 核心：孤立角色不是故事，角色之间的关系网才是。

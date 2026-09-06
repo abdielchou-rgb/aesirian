@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """对话质量门禁 — McKee《对白的解剖》核心原理。
 
 三层对白分析：
@@ -103,7 +105,7 @@ class DLG05_CharacterVoice(BaseGate):
             return self.pass_result(message="对话样本不足")
 
         # 按角色分组
-        voices = {}
+        voices: dict[str, list[str]] = {}
         for block in dialogue_blocks:
             char = block.get("character", "?")
             text = block.get("text", "")

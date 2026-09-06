@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """角色弧光 + 长篇节奏 + 转折质量 + 断章/付费点门禁。"""
 
 from wenjian.models import GateSeverity

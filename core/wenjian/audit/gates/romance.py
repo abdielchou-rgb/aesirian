@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """女频门禁 — 情感流、人设互动、甜虐比、修罗场。
 
 现有门禁全部男频倾向（爽点、升级、打脸）。

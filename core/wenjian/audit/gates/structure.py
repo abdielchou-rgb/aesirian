@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """结构门禁 — 断章钩子、场景目标、节奏冰火七重天。
 
 断章钩子（网文核心）：

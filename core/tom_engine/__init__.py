@@ -20,7 +20,7 @@ import json
 import uuid
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
 # ═══════════════════════════════════════════
 # 核心数据类型
@@ -88,7 +88,7 @@ class CharacterBeliefState:
     # 当前活跃目标
     active_goals: list[Goal] = field(default_factory=list)
 
-    def get_dramatic_irony(self, reader_knowledge: dict[str, bool]) -> list[str]:
+    def get_dramatic_irony(self, reader_knowledge: dict[str, bool | str]) -> list[str]:
         """计算当前角色的"戏剧反讽"——读者知道但角色不知道的事"""
         ironies = []
         for prop, truth in reader_knowledge.items():
@@ -468,7 +468,7 @@ class TheoryOfMindEngine:
 
     def to_snapshot(self) -> dict:
         """导出完整的 ToM 状态快照——用于持久化和心智网格可视化"""
-        snapshot = {
+        snapshot: dict[str, Any] = {
             "characters": {},
             "tension_points": [
                 {

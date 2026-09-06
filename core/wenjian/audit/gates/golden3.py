@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """黄金三章门禁 — 网文前 3 章专项审计。
 
 网文生死就在前三章，独立于其他门禁单独运行。

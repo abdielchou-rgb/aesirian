@@ -357,7 +357,7 @@ class EventCooldownMatrix:
         """推荐当前应该使用的叙事模式（冷却值最低的）"""
         cold_patterns = self.get_cold_patterns()
         if not cold_patterns:
-            return sorted(self.matrix.items(), key=lambda x: x[1])[:count]
+            return [p for p, _ in sorted(self.matrix.items(), key=lambda x: x[1])[:count]]
         return cold_patterns[:count]
 
     def recent_pattern_distribution(self, window: int = 10) -> dict[str, float]:

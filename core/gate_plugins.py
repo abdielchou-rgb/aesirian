@@ -116,7 +116,6 @@ class GateContext:
     abrupt_transitions: int = 0
     projected_chapters: int = 30
     relationship_map: dict = field(default_factory=dict)
-    active_template: str = ""
     domain_tags: list = field(default_factory=list)
     problem_stated: bool = False
     solution_applied: bool = False
@@ -491,7 +490,7 @@ def create_gate_registry(kg=None, tom=None, reader=None) -> GateRegistry:
     ]
 
     for cls in builtins:
-        registry.register(cls)
+        registry.register(cls)  # type: ignore[type-abstract]  # builtins 均为具体门禁，列表 join 收窄到抽象基类
 
     return registry
 

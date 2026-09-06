@@ -15,6 +15,7 @@ import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from functools import wraps
+from typing import Any
 
 import structlog
 
@@ -67,7 +68,8 @@ def configure_observability(
 
         token = logfire_token or os.environ.get("LOGFIRE_TOKEN")
         if token:
-            logfire.configure(
+            # logfire stub 未含 sample_rate（运行时各版本参数不同）——按运行时可接受处理
+            logfire.configure(  # type: ignore[call-arg]
                 service_name=service_name,
                 environment=environment or os.environ.get("ENVIRONMENT", "development"),
                 token=token,
@@ -78,7 +80,7 @@ def configure_observability(
             # 本地模式：只输出到控制台
             # O2 兼容：logfire v5 的 ConsoleOptions 参数为 min_log_level，
             # 旧版使用 min_level；运行时探测签名，避免 TypeError。
-            _console_kwargs = {"colors": True}
+            _console_kwargs: dict[str, Any] = {"colors": True}
             try:
                 _cs_params = set(inspect.signature(logfire.ConsoleOptions).parameters)
             except (ValueError, TypeError):
@@ -216,7 +218,7 @@ def metric_counter(name: str, value: float = 1, attributes: dict = None):
     try:
         import logfire
 
-        logfire.metric(name, value, attributes=attributes or {})
+        logfire.metric(name, value, attributes=attributes or {})  # type: ignore[attr-defined]
     except ImportError:
         pass
 
@@ -226,7 +228,7 @@ def metric_histogram(name: str, value: float, attributes: dict = None):
     try:
         import logfire
 
-        logfire.metric(name, value, attributes=attributes or {})
+        logfire.metric(name, value, attributes=attributes or {})  # type: ignore[attr-defined]
     except ImportError:
         pass
 
@@ -236,7 +238,7 @@ def metric_gauge(name: str, value: float, attributes: dict = None):
     try:
         import logfire
 
-        logfire.metric(name, value, attributes=attributes or {})
+        logfire.metric(name, value, attributes=attributes or {})  # type: ignore[attr-defined]
     except ImportError:
         pass
 

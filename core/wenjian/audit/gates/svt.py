@@ -58,7 +58,7 @@ class SVT03_ValueMonotone(BaseGate):
         dominant = max(value_pair_counts.values())
         ratio = dominant / total
         if ratio > 0.8:
-            dominant_pair = max(value_pair_counts, key=value_pair_counts.get)
+            dominant_pair = max(value_pair_counts, key=lambda k: value_pair_counts[k])
             return self.fail_result(
                 message=f"价值观'{dominant_pair}'占{ratio:.0%}，超过80%阈值",
                 details={

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """悬念递进门禁 — Bell《冲突与悬念》原理。
 
 悬念不是"有或没有"，而是"在升级还是衰减"。

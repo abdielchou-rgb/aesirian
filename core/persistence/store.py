@@ -16,7 +16,7 @@ import os
 import uuid
 from contextlib import contextmanager
 
-from sqlalchemy import event
+from sqlalchemy import Engine, event
 from sqlalchemy.pool import QueuePool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -47,7 +47,7 @@ class ProjectStore:
     is unaffected: each instance opens the same aesirian.db.
     """
 
-    _memory_engine = None  # process-wide shared in-memory engine
+    _memory_engine: Engine | None = None  # process-wide shared in-memory engine
 
     def __init__(self, database_url: str = None, pool_size: int = 5, max_overflow: int = 10):
         if database_url is None:
@@ -173,7 +173,8 @@ class ProjectStore:
 
     def list_projects(self) -> list[Project]:
         with Session(self.engine) as session:
-            statement = select(Project).order_by(Project.updated_at.desc())
+            # SQLModel 映射列在静态类型上是 python 值类型；.desc() 是 sqlalchemy 已知 typing 局限
+            statement = select(Project).order_by(Project.updated_at.desc())  # type: ignore[attr-defined]
             return list(session.exec(statement).all())
 
     def delete_project(self, project_id: str) -> bool:
@@ -224,7 +225,7 @@ class ProjectStore:
     def get_chapters(self, project_id: str) -> list[Chapter]:
         with Session(self.engine) as session:
             statement = (
-                select(Chapter).where(Chapter.project_id == project_id).order_by(Chapter.number)
+                select(Chapter).where(Chapter.project_id == project_id).order_by(Chapter.number)  # type: ignore[arg-type]
             )
             return list(session.exec(statement).all())
 
@@ -233,7 +234,7 @@ class ProjectStore:
             statement = (
                 select(Chapter)
                 .where(Chapter.project_id == project_id)
-                .order_by(Chapter.number.desc())
+                .order_by(Chapter.number.desc())  # type: ignore[attr-defined]
             )
             return session.exec(statement).first()
 
@@ -464,7 +465,7 @@ class ProjectStore:
                     Foreshadowing.project_id == project_id,
                     Foreshadowing.status == "open",
                 )
-                .order_by(Foreshadowing.created_at)
+                .order_by(Foreshadowing.created_at)  # type: ignore[arg-type]
             )
             return list(session.exec(statement).all())
 
@@ -473,7 +474,7 @@ class ProjectStore:
             statement = (
                 select(Foreshadowing)
                 .where(Foreshadowing.project_id == project_id)
-                .order_by(Foreshadowing.created_at)
+                .order_by(Foreshadowing.created_at)  # type: ignore[arg-type]
             )
             return list(session.exec(statement).all())
 
@@ -507,7 +508,7 @@ class ProjectStore:
             statement = (
                 select(StyleFingerprint)
                 .where(StyleFingerprint.project_id == project_id)
-                .order_by(StyleFingerprint.updated_at.desc())
+                .order_by(StyleFingerprint.updated_at.desc())  # type: ignore[attr-defined]
             )
             return session.exec(statement).first()
 
@@ -555,7 +556,7 @@ class ProjectStore:
             statement = (
                 select(AuditReport)
                 .where(AuditReport.project_id == project_id)
-                .order_by(AuditReport.created_at.desc())
+                .order_by(AuditReport.created_at.desc())  # type: ignore[attr-defined]
             )
             return list(session.exec(statement).all())
 
@@ -597,11 +598,11 @@ class ProjectStore:
                 # Simple filter - in production would use JSON contains
                 pass
             if sort_by == "downloads":
-                statement = statement.order_by(StyleProfile.download_count.desc())
+                statement = statement.order_by(StyleProfile.download_count.desc())  # type: ignore[attr-defined]
             elif sort_by == "rating":
-                statement = statement.order_by(StyleProfile.rating.desc())
+                statement = statement.order_by(StyleProfile.rating.desc())  # type: ignore[attr-defined]
             elif sort_by == "newest":
-                statement = statement.order_by(StyleProfile.created_at.desc())
+                statement = statement.order_by(StyleProfile.created_at.desc())  # type: ignore[attr-defined]
             return list(session.exec(statement).all())
 
     def get_style_profile(self, profile_id: int) -> StyleProfile | None:

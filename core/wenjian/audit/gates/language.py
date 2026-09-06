@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """语言门禁 — MRU 单元、POV 纪律、斯蒂芬金语言检测。
 
 MRU 单元（Swain《卖座小说技巧》）：
@@ -63,7 +65,7 @@ class LANG02_POVDiscipline(BaseGate):
     severity = GateSeverity.WARN
 
     def evaluate(self, text: str) -> GateResult:
-        issues = []
+        issues: list[str] = []
 
         # 检测全知视角泄露模式
         omniscient_patterns = [

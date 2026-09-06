@@ -410,7 +410,7 @@ class TemporalKnowledgeGraph:
 
     def query_at_chapter(self, chapter: int) -> dict:
         """查询指定章节时的故事状态快照"""
-        result = {
+        result: dict[str, list[str]] = {
             "character_relationships": [],
             "active_events": [],
         }

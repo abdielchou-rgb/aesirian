@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """角色关系网门禁 — 基于 John Truby《The Anatomy of Story》。
 
 Truby 核心：角色不由他们"是谁"定义，由"和谁有什么关系"定义。

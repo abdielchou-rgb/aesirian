@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """爽点工程门禁 — 中国网文最核心技术。
 
 爽点 = 让读者产生正向情绪冲击的叙事单元。

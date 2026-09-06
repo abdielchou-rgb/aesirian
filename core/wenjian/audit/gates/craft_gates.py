@@ -193,7 +193,7 @@ class NEU02_EmpathyTrigger(BaseGate):
             return self.fail_result(
                 message="未检测到普遍困境信号—读者可能难以共情", details={"dilemmas_found": "无"}
             )
-        top = max(found_dilemmas, key=found_dilemmas.get)
+        top = max(found_dilemmas, key=lambda c: found_dilemmas[c])
         return self.pass_result(
             details={"dilemmas_found": list(found_dilemmas.keys()), "primary": top}
         )

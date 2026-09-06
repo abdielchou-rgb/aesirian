@@ -17,6 +17,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
+from typing import Any
 
 ROOT = os.path.dirname(
     os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,7 +42,7 @@ class PluginSpec:
 @dataclass
 class LoadedPlugin:
     spec: PluginSpec
-    instance: object
+    instance: Any  # 插件为动态加载：模块对象或任意类实例
 
 
 PLUGINS: dict[str, LoadedPlugin] = {}
@@ -84,6 +85,9 @@ def _load_plugin(spec: PluginSpec) -> object | None:
     try:
         mod_id = f"aesirian_plugin_{spec.name.replace('-', '_')}"
         mod_spec = importlib.util.spec_from_file_location(mod_id, py_path)
+        if mod_spec is None or mod_spec.loader is None:
+            _load_errors.append(f"{spec.name}: 无法解析模块 spec — {py_path}")
+            return None
         module = importlib.util.module_from_spec(mod_spec)
         sys.modules[mod_id] = module
         mod_spec.loader.exec_module(module)

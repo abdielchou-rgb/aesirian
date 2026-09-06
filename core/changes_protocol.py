@@ -58,9 +58,7 @@ class ChangesDeclaration:
         return self.field_count == 0
 
     def to_dict(self) -> dict:
-        return {
-            f.name: getattr(self, f.name) for f in self.__dataclass_fields__.__members__.values()
-        }
+        return {f.name: getattr(self, f.name) for f in self.__dataclass_fields__.values()}
 
 
 class ChangesParser:

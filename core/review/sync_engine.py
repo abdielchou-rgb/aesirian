@@ -134,7 +134,7 @@ class SyncEngine:
         source: str,
         content: dict,
         mode: str = "realtime",
-        options: dict | None = None,
+        options: dict[str, Any] | None = None,
         state: ReviewState | None = None,
     ) -> dict:
         """执行同步，返回 {status, changes, conflicts, summary, sync_id}。
@@ -146,7 +146,11 @@ class SyncEngine:
 
         options = options or {}
         force = bool(options.get("force")) or mode == "force"
-        target_views = list(options.get("target_views") or TARGETS.get(source, []))
+        requested_views = options.get("target_views")
+        if requested_views:
+            target_views: list[str] = list(requested_views)
+        else:
+            target_views = list(TARGETS.get(source, ()))
 
         if source not in VIEWS:
             raise ValueError(f"Unknown source: {source}")
@@ -184,7 +188,7 @@ class SyncEngine:
 
     # ─────────── 路由 ───────────
 
-    def _dispatch(self, source: str, current: Any, content: dict, target_views: list[str]) -> dict:
+    def _dispatch(self, source: str, current: Any, content: Any, target_views: list[str]) -> dict:
         if source == "draft":
             return self._sync_from_draft(current, content, target_views)
         if source == "framework":
@@ -248,7 +252,7 @@ class SyncEngine:
             return None
         old_beats = current.framework.get("beats", [])
         new_beats = [dict(b) for b in old_beats]
-        diffs = {"added": [], "modified": [], "deleted": []}
+        diffs: dict[str, list[dict]] = {"added": [], "modified": [], "deleted": []}
 
         act_map = {1: "act_1", 2: "act_2", 3: "act_3"}
         for chunk in added:

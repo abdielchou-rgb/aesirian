@@ -73,9 +73,9 @@ class AgentPipeline:
 
     def __init__(
         self,
-        write_fn: Callable,
-        assess_fn: Callable,
-        revise_fn: Callable,
+        write_fn: Callable[..., Any] | None,
+        assess_fn: Callable[..., Any] | None,
+        revise_fn: Callable[..., Any] | None,
         max_retries: int = 3,
         pass_threshold: float = 0.85,  # InkOS: >=85分通过
         rollback_enabled: bool = True,

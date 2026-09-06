@@ -257,7 +257,7 @@ def create_chapter_agent(model: Model = None, deps_type: type = dict) -> Agent:
     return Agent(
         model,
         deps_type=deps_type,
-        output_type=ChapterDraft,
+        output_type=ChapterDraft,  # type: ignore[arg-type]  # pydantic-ai 泛型只列 str 输出，结构体输出为已知 stub 局限
         system_prompt=(
             "你是一位中文网文作家。根据用户给定的灵感和上下文，写出一段完整的小说正文。\n"
             "要求：\n"
@@ -277,7 +277,7 @@ def create_scene_constraints_agent(model: Model = None, deps_type: type = dict) 
     return Agent(
         model,
         deps_type=deps_type,
-        output_type=SceneConstraints,
+        output_type=SceneConstraints,  # type: ignore[arg-type]  # pydantic-ai 泛型只列 str 输出，结构体输出为已知 stub 局限
         system_prompt=(
             "你是一个叙事设计师。根据项目状态输出结构化的场景写作约束。\n"
             "输出必须包含：tension_points、character_tendencies、reader_state、recommended_patterns、cold_available_patterns、narrative_guidance"
@@ -292,7 +292,7 @@ def create_simulation_agent(model: Model = None, deps_type: type = dict) -> Agen
     return Agent(
         model,
         deps_type=deps_type,
-        output_type=SimulationResult,
+        output_type=SimulationResult,  # type: ignore[arg-type]  # pydantic-ai 泛型只列 str 输出，结构体输出为已知 stub 局限
         system_prompt=(
             "你是一个剧情推演师。基于假设和信念变更，推演出新的张力点和情节分支。\n"
             "输出必须包含：hypothesis、tensions、branches、applied_beliefs、llm_used"
@@ -307,7 +307,7 @@ def create_divergence_agent(model: Model = None, deps_type: type = dict) -> Agen
     return Agent(
         model,
         deps_type=deps_type,
-        output_type=DivergenceResult,
+        output_type=DivergenceResult,  # type: ignore[arg-type]  # pydantic-ai 泛型只列 str 输出，结构体输出为已知 stub 局限
         system_prompt=(
             "你是一个世界观构建师。基于碎片画面，构思完整的小说世界线。\n"
             "输出必须包含：worldlines（每个包含 id、genre、structure、conflict_core、beats[5]、opening）、llm_used、fragment_count"
@@ -322,7 +322,7 @@ def create_suggestions_agent(model: Model = None, deps_type: type = dict) -> Age
     return Agent(
         model,
         deps_type=deps_type,
-        output_type=SuggestionsResult,
+        output_type=SuggestionsResult,  # type: ignore[arg-type]  # pydantic-ai 泛型只列 str 输出，结构体输出为已知 stub 局限
         system_prompt=(
             "你是一个续写建议生成器。根据上下文生成 3-5 条结构化续写建议。\n"
             "每条建议包含：type（tension/character/reader/pattern/llm）、text（≤40字）、rationale（≤20字）、source（≤30字）"

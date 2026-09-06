@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from wenjian.models import GateResult
+
 """断章卡点门禁 — 网文实战技巧。
 
 网文读者翻页成本极低，断章质量决定追读率。

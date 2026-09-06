@@ -9,15 +9,17 @@ from __future__ import annotations
 import math
 import re
 from collections import Counter
+from typing import Any
 
 # ── 尝试导入 jieba ──────────────────────────────────────────────────────
 _JIEBA_AVAILABLE = False
-_jieba_posseg = None
+_jieba_posseg: Any = None
 
 try:
     import jieba
-    import jieba.posseg as _jieba_posseg
+    import jieba.posseg as _jieba_posseg_mod
 
+    _jieba_posseg = _jieba_posseg_mod
     _JIEBA_AVAILABLE = True
 except ImportError:
     pass
@@ -204,7 +206,7 @@ class NLPEngine:
 
     # ── POS 分布 ──────────────────────────────────────────────────────
 
-    def get_pos_distribution(self, text: str) -> dict[str, dict]:
+    def get_pos_distribution(self, text: str) -> dict[str, Any]:
         """返回词性分布统计。
 
         Returns:
@@ -252,8 +254,8 @@ class NLPEngine:
             }
 
         # 构建 bigram 计数
-        bigrams = Counter()
-        prev_tags_count = Counter()
+        bigrams: Counter[str] = Counter()
+        prev_tags_count: Counter[str] = Counter()
 
         for i in range(len(tagged) - 1):
             prev_tag = tagged[i][1]
@@ -264,7 +266,7 @@ class NLPEngine:
 
         # 转移概率 P(B|A)
         probabilities = {}
-        conditional = {}
+        conditional: dict[str, dict[str, float]] = {}
         for bg, cnt in bigrams.items():
             prev, _ = bg.split("_", 1)
             prob = cnt / prev_tags_count[prev] if prev_tags_count[prev] > 0 else 0
@@ -524,7 +526,7 @@ def tokenize(text: str, mode: str = "default") -> list[tuple[str, int, int]]:
     return get_engine().tokenize(text, mode)
 
 
-def get_pos_distribution(text: str) -> dict[str, dict]:
+def get_pos_distribution(text: str) -> dict[str, Any]:
     return get_engine().get_pos_distribution(text)
 
 
