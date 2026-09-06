@@ -1,6 +1,6 @@
 {
   "name": "aesirian-ide",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Æsirian Desktop IDE — 双模式叙事写作环境",
   "main": "public/electron/main.js",
   "scripts": {

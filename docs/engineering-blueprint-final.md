@@ -1021,7 +1021,7 @@ electron_ide/src/
 ### 8.1 环境准备
 
 ```bash
-cd D:\Claude\NovelProjects\aesirian
+cd <aesirian-repo-root>
 pip install -r requirements.txt
 ```
 

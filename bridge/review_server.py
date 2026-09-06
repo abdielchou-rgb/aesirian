@@ -23,7 +23,7 @@ from fastapi.staticfiles import StaticFiles
 
 from bridge.review_api import router as review_router
 
-app = FastAPI(title="Æsirian Review Page", version="0.1.0")
+app = FastAPI(title="Æsirian Review Page", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(review_router)
 

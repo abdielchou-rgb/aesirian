@@ -14,7 +14,7 @@ PowerShell     →  系统自带
 打开 PowerShell，依次执行：
 
 ```powershell
-cd D:\Claude\NovelProjects\aesirian
+cd <aesirian-repo-root>
 python -m uvicorn bridge.api_server:app --host 127.0.0.1 --port 8765
 ```
 
@@ -73,7 +73,7 @@ http://127.0.0.1:8765/dashboard.html
 启动后端后，在另一个终端执行（保持后端运行）：
 
 ```powershell
-cd D:\Claude\NovelProjects\aesirian
+cd <aesirian-repo-root>
 python -c "
 import sys; sys.path.insert(0,'.')
 from fastapi.testclient import TestClient

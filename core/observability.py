@@ -96,7 +96,7 @@ def configure_observability(
         if callable(_set_tags):
             _set_tags({
                 "service": service_name,
-                "version": "0.1.0",
+                "version": "0.2.0",
             })
 
         _LOGFIRE_CONFIGURED = True

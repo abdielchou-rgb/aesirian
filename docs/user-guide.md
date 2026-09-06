@@ -7,12 +7,12 @@
 ### 安装
 
 **桌面版（Windows）**：
-1. 运行 `Æsirian Setup 0.1.0.exe`（免安装版解压 `win-unpacked/` 即可）
+1. 从 Releases 下载桌面安装包（或按仓库 README「快速开始」从源码运行）
 2. 首次启动自动拉起后端引擎（SQLite 本地存储，数据不离开你的电脑）
 
 **浏览器版**：
 ```bash
-cd D:\Claude\NovelProjects\aesirian
+cd <aesirian-repo-root>
 python -X utf8 -m uvicorn bridge.api_server:app --host 127.0.0.1 --port 8765
 # 打开 http://127.0.0.1:8765/dashboard.html
 ```
@@ -110,7 +110,7 @@ AI 生成经过：
 
 ## 常见问题
 
-**数据存在哪？** 全部本地 SQLite（`data/aesirian.db`），不联网上传。
+**数据存在哪？** 全部本地 SQLite（仓库根目录 `aesirian.db`），不联网上传。
 
 **AI 需要什么 Key？** 设置任一环境变量即可：`DEEPSEEK_API_KEY` / `OPENAI_API_KEY` / `ZHIPU_API_KEY` / `ANTHROPIC_API_KEY`；或 `OLLAMA_HOST` 用本地模型。
 
