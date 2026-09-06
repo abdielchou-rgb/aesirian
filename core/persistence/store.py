@@ -16,7 +16,7 @@ import os
 import uuid
 from contextlib import contextmanager
 
-from sqlalchemy import Engine, event
+from sqlalchemy import Engine, event, func
 from sqlalchemy.pool import QueuePool, StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -170,6 +170,30 @@ class ProjectStore:
     def get_project(self, project_id: str) -> Project | None:
         with Session(self.engine) as session:
             return session.get(Project, project_id)
+
+    def project_revision(self, project_id: str) -> tuple:
+        """P2-10: 项目持久化 revision——轻量一致性信号，供运行时缓存失效判断。
+
+        返回 (updated_at_str, chapter_count, character_count)。任何提交章节、
+        角色状态回写、世界元素 upsert 都会 touch_project 更新 updated_at 或改变
+        计数，因此该三元组可作为"DB 是否已被另一写入者改动"的廉价指纹。
+        """
+        with Session(self.engine) as session:
+            project = session.get(Project, project_id)
+            if not project:
+                return ("", 0, 0)
+            ch_count = session.exec(
+                select(func.count()).select_from(Chapter).where(  # type: ignore[arg-type]
+                    Chapter.project_id == project_id
+                )
+            ).one()
+            char_count = session.exec(
+                select(func.count()).select_from(Character).where(  # type: ignore[arg-type]
+                    Character.project_id == project_id
+                )
+            ).one()
+            updated = str(project.updated_at) if project.updated_at else ""
+            return (updated, int(ch_count), int(char_count))
 
     def list_projects(self) -> list[Project]:
         with Session(self.engine) as session:

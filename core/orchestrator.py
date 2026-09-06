@@ -125,6 +125,10 @@ class Orchestrator:
         self.store = store or ProjectStore()
         # 运行时缓存：project_id → ProjectState
         self._runtime_cache: dict[str, ProjectState] = {}
+        # P2-10: per-project 持久化 revision——缓存命中时校验 DB 是否已被另一
+        # 写入者改动；不一致即丢弃缓存重载（确定性失效，不再依赖散落的
+        # _invalidate_cache 调用点是否遗漏）。
+        self._cache_revision: dict[str, tuple] = {}
 
     # ═══════════════════════════════════════
     # 运行时引擎重建
@@ -314,17 +318,30 @@ class Orchestrator:
                     pass
 
     def _get_or_load_project(self, project_id: str) -> ProjectState | None:
-        """获取项目状态——优先使用缓存，否则从DB加载"""
-        if project_id in self._runtime_cache:
-            return self._runtime_cache[project_id]
+        """获取项目状态——优先使用缓存，否则从DB加载。
+
+        P2-10: 缓存命中时先校验持久化 revision；若 DB 已被其他写入者改动
+        （另一 Orchestrator 实例 / 直接 store 写 / 外部进程），丢弃缓存重载，
+        保证运行时 ToM/KG 状态与 DB 一致。这是对散落 _invalidate_cache 的兜底。
+        """
+        cached = self._runtime_cache.get(project_id)
+        if cached is not None:
+            current_rev = self.store.project_revision(project_id)
+            if self._cache_revision.get(project_id) == current_rev:
+                return cached
+            # revision 不一致 → 缓存陈旧，丢弃重载
+            self._runtime_cache.pop(project_id, None)
+            self._cache_revision.pop(project_id, None)
         state = self._load_project_state(project_id)
         if state:
             self._runtime_cache[project_id] = state
+            self._cache_revision[project_id] = self.store.project_revision(project_id)
         return state
 
     def _invalidate_cache(self, project_id: str):
-        """使缓存失效——在突变操作后调用"""
+        """使缓存失效——在突变操作后调用（P2-10 同时清除 revision 指纹）。"""
         self._runtime_cache.pop(project_id, None)
+        self._cache_revision.pop(project_id, None)
 
     # ═══════════════════════════════════════
     # 项目生命周期
@@ -459,6 +476,7 @@ class Orchestrator:
 
         # 缓存运行时状态
         self._runtime_cache[pid] = project
+        self._cache_revision[pid] = self.store.project_revision(pid)
         return project
 
     def get_project(self, project_id: str) -> ProjectState | None:
