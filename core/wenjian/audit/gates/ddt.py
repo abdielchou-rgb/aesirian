@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 """Dual Desire Tracker gates (DDT-01 to DDT-04)."""
 
-from .base import BaseGate
 from wenjian.models import GateResult, GateSeverity
+
+from .base import BaseGate
 
 
 class DDT01_SingleDesire(BaseGate):
@@ -11,7 +13,9 @@ class DDT01_SingleDesire(BaseGate):
     description = "主要角色必须有自觉和不自觉双重欲望"
     severity = GateSeverity.WARN
 
-    def evaluate(self, character_name: str, has_conscious: bool, has_unconscious: bool) -> GateResult:
+    def evaluate(
+        self, character_name: str, has_conscious: bool, has_unconscious: bool
+    ) -> GateResult:
         if not has_conscious or not has_unconscious:
             missing = []
             if not has_conscious:
@@ -20,7 +24,11 @@ class DDT01_SingleDesire(BaseGate):
                 missing.append("不自觉欲望")
             return self.fail_result(
                 message=f"角色'{character_name}'缺少{'、'.join(missing)}",
-                details={"character": character_name, "has_conscious": has_conscious, "has_unconscious": has_unconscious},
+                details={
+                    "character": character_name,
+                    "has_conscious": has_conscious,
+                    "has_unconscious": has_unconscious,
+                },
             )
         return self.pass_result(details={"character": character_name})
 
@@ -71,4 +79,6 @@ class DDT04_DesireLatentTooLong(BaseGate):
                 message=f"不自觉欲望在{current_position:.0%}处仍为latent，超过60%阈值",
                 details={"position": current_position, "desire_status": desire_status},
             )
-        return self.pass_result(details={"position": current_position, "desire_status": desire_status})
+        return self.pass_result(
+            details={"position": current_position, "desire_status": desire_status}
+        )

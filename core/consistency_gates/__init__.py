@@ -17,20 +17,22 @@
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from enum import Enum
-from typing import Optional, Callable
-from datetime import datetime
 
+from collections.abc import Callable
+from dataclasses import dataclass, field
+from datetime import datetime
+from enum import Enum
+from typing import Optional
 
 # ═══════════════════════════════════════════
 # 门禁核心类型
 # ═══════════════════════════════════════════
 
+
 class GateLevel(Enum):
-    BLOCK = 0   # 阻断：不显示
-    WARN = 1    # 警告：显示但标注
-    PASS = 2    # 通过
+    BLOCK = 0  # 阻断：不显示
+    WARN = 1  # 警告：显示但标注
+    PASS = 2  # 通过
 
 
 class GatePhase(Enum):
@@ -41,13 +43,14 @@ class GatePhase(Enum):
 @dataclass
 class GateResult:
     """一道门禁的检查结果"""
+
     gate_id: str
     gate_name: str
     level: GateLevel
     message: str = ""
-    detail: str = ""                    # 详细描述
-    source_location: Optional[str] = None  # 矛盾点的位置（章节+段落号）
-    suggestion: str = ""                # 修改建议
+    detail: str = ""  # 详细描述
+    source_location: str | None = None  # 矛盾点的位置（章节+段落号）
+    suggestion: str = ""  # 修改建议
 
     def to_dict(self) -> dict:
         return {
@@ -57,13 +60,14 @@ class GateResult:
             "message": self.message,
             "detail": self.detail,
             "source": self.source_location,
-            "suggestion": self.suggestion
+            "suggestion": self.suggestion,
         }
 
 
 @dataclass
 class AuditReport:
     """一章的审计报告——由 G6-G10 全量审计生成"""
+
     chapter: int
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
     results: list[GateResult] = field(default_factory=list)
@@ -79,13 +83,14 @@ class AuditReport:
             "chapter": self.chapter,
             "timestamp": self.timestamp,
             "overall_score": self.overall_score,
-            "results": [r.to_dict() for r in self.results]
+            "results": [r.to_dict() for r in self.results],
         }
 
 
 # ═══════════════════════════════════════════
 # 一致性门禁系统
 # ═══════════════════════════════════════════
+
 
 class ConsistencyGateSystem:
     """
@@ -108,13 +113,13 @@ class ConsistencyGateSystem:
     所有门禁默认开启（active=True）。可通过 gate_config 关闭指定门禁用于实验。
     """
 
-    def __init__(self, gate_config: Optional[dict[str, bool]] = None):
+    def __init__(self, gate_config: dict[str, bool] | None = None):
         self.gate_config = gate_config or {}
 
         # 依赖注入——这些由外部设置
-        self.knowledge_graph = None   # TemporalKnowledgeGraph 实例
-        self.tom_engine = None        # TheoryOfMindEngine 实例
-        self.reader_model = None      # ReaderModel 实例
+        self.knowledge_graph = None  # TemporalKnowledgeGraph 实例
+        self.tom_engine = None  # TheoryOfMindEngine 实例
+        self.reader_model = None  # ReaderModel 实例
 
         self._current_chapter = 0
         self._audit_history: list[AuditReport] = []
@@ -133,7 +138,7 @@ class ConsistencyGateSystem:
     # 生成前门禁 G1-G5
     # ═══════════════════════════════════════
 
-    def check_g1_fact_consistency(self, text: str, facts: list[dict] = None) -> Optional[GateResult]:
+    def check_g1_fact_consistency(self, text: str, facts: list[dict] = None) -> GateResult | None:
         """
         G1 事实一致性
 
@@ -156,9 +161,7 @@ class ConsistencyGateSystem:
             if not subject:
                 continue
 
-            conflicts = self.knowledge_graph.detect_conflicts(
-                f"{predicate}{obj}", subject
-            )
+            conflicts = self.knowledge_graph.detect_conflicts(f"{predicate}{obj}", subject)
             if conflicts:
                 detail = "; ".join(conflicts)
                 return GateResult(
@@ -167,11 +170,13 @@ class ConsistencyGateSystem:
                     level=GateLevel.BLOCK,
                     message=f"事实矛盾：{detail}",
                     detail=f"文本声称「{subject}{predicate}{obj}」，但已有图谱显示 {detail}",
-                    source_location=self._find_location_in_text(text, subject)
+                    source_location=self._find_location_in_text(text, subject),
                 )
         return None
 
-    def check_g2_belief_consistency(self, text: str, char_actions: list[dict] = None) -> Optional[GateResult]:
+    def check_g2_belief_consistency(
+        self, text: str, char_actions: list[dict] = None
+    ) -> GateResult | None:
         """
         G2 信念一致性
 
@@ -206,8 +211,8 @@ class ConsistencyGateSystem:
                             gate_name="信念一致性",
                             level=GateLevel.WARN,
                             message=f"角色行为与信念不一致：{conflict}",
-                            detail=f"需要添加合理解释（角色&apos;发现了新证据&apos;或&apos;被迫伪装&apos;）",
-                            suggestion="给角色一个改变行为的内在动机"
+                            detail="需要添加合理解释（角色&apos;发现了新证据&apos;或&apos;被迫伪装&apos;）",
+                            suggestion="给角色一个改变行为的内在动机",
                         )
 
                 return GateResult(
@@ -215,11 +220,13 @@ class ConsistencyGateSystem:
                     gate_name="信念一致性",
                     level=GateLevel.BLOCK,
                     message=f"角色行为严重违背信念：{conflict}",
-                    detail="没有任何信念层面的解释"
+                    detail="没有任何信念层面的解释",
                 )
         return None
 
-    def check_g3_identity_continuity(self, text: str, changes: list[dict] = None) -> Optional[GateResult]:
+    def check_g3_identity_continuity(
+        self, text: str, changes: list[dict] = None
+    ) -> GateResult | None:
         """
         G3 身份连续性
 
@@ -250,11 +257,13 @@ class ConsistencyGateSystem:
                     level=GateLevel.WARN,
                     message=f"{char_name}的{property_name}从「{old_val}」突变为「{new_val}」",
                     detail="没有提供合理解释",
-                    suggestion=f"在之前的章节中铺垫{char_name}{property_name}的变化动机"
+                    suggestion=f"在之前的章节中铺垫{char_name}{property_name}的变化动机",
                 )
         return None
 
-    def check_g4_timeline_consistency(self, text: str, events: list[dict] = None) -> Optional[GateResult]:
+    def check_g4_timeline_consistency(
+        self, text: str, events: list[dict] = None
+    ) -> GateResult | None:
         """
         G4 时间线一致性
 
@@ -283,11 +292,13 @@ class ConsistencyGateSystem:
                     gate_name="时间线一致性",
                     level=GateLevel.BLOCK,
                     message=conflict,
-                    detail=f"事件「{event_name}」的时序不合理"
+                    detail=f"事件「{event_name}」的时序不合理",
                 )
         return None
 
-    def check_g5_spatial_consistency(self, text: str, movements: list[dict] = None) -> Optional[GateResult]:
+    def check_g5_spatial_consistency(
+        self, text: str, movements: list[dict] = None
+    ) -> GateResult | None:
         """
         G5 空间一致性
 
@@ -319,7 +330,7 @@ class ConsistencyGateSystem:
                         level=GateLevel.WARN,
                         message=f"{char}从{from_place}到{to_place}（约{known_distance}km）",
                         detail=f"在{travel_time}小时内到达不太合理",
-                        suggestion="提供交通工具的解释"
+                        suggestion="提供交通工具的解释",
                     )
         return None
 
@@ -351,12 +362,9 @@ class ConsistencyGateSystem:
             ("G5", self.check_g5_spatial_consistency(text, context.get("movements"))),
         ]
 
-        for gid, result in checks:
+        for _, result in checks:
             if result:
                 results.append(result)
-
-        # 如果有 BLOCK 级别门禁触发，不在建议流中显示
-        has_block = any(r.level == GateLevel.BLOCK for r in results)
 
         return results
 
@@ -364,7 +372,9 @@ class ConsistencyGateSystem:
     # 生成后审计 G6-G10
     # ═══════════════════════════════════════
 
-    def audit_g6_causal_chain(self, chapter_text: str, plot_state: dict = None) -> Optional[GateResult]:
+    def audit_g6_causal_chain(
+        self, chapter_text: str, plot_state: dict = None
+    ) -> GateResult | None:
         """
         G6 因果链完整性
 
@@ -384,18 +394,23 @@ class ConsistencyGateSystem:
             tid = thread.get("id", "")
             expected_chapter = thread.get("expected_resolve_chapter", 0)
 
-            if tid not in resolved_this_chapter:
-                if expected_chapter and expected_chapter <= self._current_chapter:
-                    return GateResult(
+            if (
+                tid not in resolved_this_chapter
+                and expected_chapter
+                and expected_chapter <= self._current_chapter
+            ):
+                return GateResult(
                         gate_id="G6",
                         gate_name="因果链完整性",
                         level=GateLevel.WARN,
                         message=f"线索「{thread.get('description', '')}」超过预期回收章节({expected_chapter})",
-                        detail="建议在新章节中推进或回收"
+                        detail="建议在新章节中推进或回收",
                     )
         return None
 
-    def audit_g7_narrative_rhythm(self, chapter_text: str, genre_contract: dict = None) -> Optional[GateResult]:
+    def audit_g7_narrative_rhythm(
+        self, chapter_text: str, genre_contract: dict = None
+    ) -> GateResult | None:
         """
         G7 叙事节奏审计
 
@@ -409,21 +424,26 @@ class ConsistencyGateSystem:
         if not required_scenes:
             return None
 
-        if self._current_chapter <= 3:
+        if (
+            self._current_chapter <= 3
+            and ("异常开场" in required_scenes or "冲突开场" in required_scenes)
+            and "conflict" not in chapter_text.lower()
+            and "异常" not in chapter_text
+        ):
             # 黄金三章检查
-            if "异常开场" in required_scenes or "冲突开场" in required_scenes:
-                if "conflict" not in chapter_text.lower() and "异常" not in chapter_text:
-                    return GateResult(
+            return GateResult(
                         gate_id="G7",
                         gate_name="叙事节奏",
                         level=GateLevel.WARN,
                         message="前3章未建立冲突/异常信号",
                         detail=f"类型契约要求：{', '.join(required_scenes[:3])}",
-                        suggestion="确保前300字内出现冲突/威胁/秘密/异常之一"
+                        suggestion="确保前300字内出现冲突/威胁/秘密/异常之一",
                     )
         return None
 
-    def audit_g8_cognitive_load(self, chapter_text: str, reader_context: dict = None) -> Optional[GateResult]:
+    def audit_g8_cognitive_load(
+        self, chapter_text: str, reader_context: dict = None
+    ) -> GateResult | None:
         """
         G8 认知负荷审计
 
@@ -440,7 +460,7 @@ class ConsistencyGateSystem:
         new_locations = reader_context.get("new_locations", 0)
         pov_switches = reader_context.get("pov_switches", 0)
 
-        load_score = (new_characters * 3 + new_locations * 2 + pov_switches * 4)
+        load_score = new_characters * 3 + new_locations * 2 + pov_switches * 4
 
         if load_score > 15:
             return GateResult(
@@ -449,11 +469,11 @@ class ConsistencyGateSystem:
                 level=GateLevel.WARN,
                 message=f"本章认知更新成本过高（得分{load_score}）",
                 detail=f"新角色{new_characters}个 + 新地点{new_locations}个 + POV切换{pov_switches}次",
-                suggestion="减少新角色引入或保持POV一致性"
+                suggestion="减少新角色引入或保持POV一致性",
             )
         return None
 
-    def audit_g9_deai_detection(self, chapter_text: str) -> Optional[GateResult]:
+    def audit_g9_deai_detection(self, chapter_text: str) -> GateResult | None:
         """
         G9 去AI化检测
 
@@ -465,22 +485,30 @@ class ConsistencyGateSystem:
 
         import re
 
-        sentences = re.split(r'[。！？\n.!?]', chapter_text)
+        sentences = re.split(r"[。！？\n.!?]", chapter_text)
         sentences = [s.strip() for s in sentences if s.strip()]
 
         if len(sentences) < 5:
             return None
 
         # 检查AI标志词
-        ai_markers = ["然而", "值得注意的是", "不可否认", "不出所料", "愈发",
-                      "毫无疑问", "显而易见", "值得一提的是", "令人惊讶的是"]
-        marker_count = sum(1 for s in sentences
-                           for m in ai_markers if m in s)
+        ai_markers = [
+            "然而",
+            "值得注意的是",
+            "不可否认",
+            "不出所料",
+            "愈发",
+            "毫无疑问",
+            "显而易见",
+            "值得一提的是",
+            "令人惊讶的是",
+        ]
+        marker_count = sum(1 for s in sentences for m in ai_markers if m in s)
 
         # 检查句式重复（连续3句以同样的方式开头）
         openings = []
-        for s in sentences[:min(10, len(sentences))]:
-            match = re.match(r'^[一-鿿]{2,3}[着了的]', s)
+        for s in sentences[: min(10, len(sentences))]:
+            match = re.match(r"^[一-鿿]{2,3}[着了的]", s)
             if match:
                 openings.append(match.group(0))
 
@@ -499,11 +527,13 @@ class ConsistencyGateSystem:
                 level=GateLevel.WARN,
                 message="; ".join(warnings),
                 detail="建议使用口语化表达、打断对话、非典型词汇",
-                suggestion="每段留1-2处非标准表达，打破'完美文本'模式"
+                suggestion="每段留1-2处非标准表达，打破'完美文本'模式",
             )
         return None
 
-    def audit_g10_cooldown_matrix(self, chapter_text: str, matrix_state: dict = None) -> Optional[GateResult]:
+    def audit_g10_cooldown_matrix(
+        self, chapter_text: str, matrix_state: dict = None
+    ) -> GateResult | None:
         """
         G10 冷却矩阵
 
@@ -519,6 +549,7 @@ class ConsistencyGateSystem:
 
         # 检查重复模式
         from collections import Counter
+
         pattern_counts = Counter(recent_patterns[-5:])
         most_common = pattern_counts.most_common(1)
 
@@ -530,7 +561,7 @@ class ConsistencyGateSystem:
                 level=GateLevel.WARN,
                 message=f"叙事模式「{pattern}」在最近5章中出现{count}次",
                 detail="相同模式过于密集会导致读者审美疲劳",
-                suggestion=f"尝试用不同的冲突类型替代{pattern}"
+                suggestion=f"尝试用不同的冲突类型替代{pattern}",
             )
         return None
 
@@ -538,11 +569,14 @@ class ConsistencyGateSystem:
     # 章后全量审计
     # ═══════════════════════════════════════
 
-    def post_chapter_audit(self, chapter_text: str,
-                          plot_state: dict = None,
-                          genre_contract: dict = None,
-                          reader_context: dict = None,
-                          matrix_state: dict = None) -> AuditReport:
+    def post_chapter_audit(
+        self,
+        chapter_text: str,
+        plot_state: dict = None,
+        genre_contract: dict = None,
+        reader_context: dict = None,
+        matrix_state: dict = None,
+    ) -> AuditReport:
         """每章完成后的全量审计（G6-G10）"""
         self._current_chapter += 1
         report = AuditReport(chapter=self._current_chapter)

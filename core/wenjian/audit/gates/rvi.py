@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 """Revelation Index gates (RVI-01 to RVI-05)."""
 
-from .base import BaseGate
 from wenjian.models import GateResult, GateSeverity
+
+from .base import BaseGate
 
 
 class RVI01_CuriosityStarvation(BaseGate):
@@ -32,7 +34,9 @@ class RVI02_FrustrationBuildup(BaseGate):
                 message=f"连续{chapters_since_last_resolution}章无缺口被解决",
                 details={"chapters_since_last_resolution": chapters_since_last_resolution},
             )
-        return self.pass_result(details={"chapters_since_last_resolution": chapters_since_last_resolution})
+        return self.pass_result(
+            details={"chapters_since_last_resolution": chapters_since_last_resolution}
+        )
 
 
 class RVI03_DeusExMachina(BaseGate):
@@ -56,11 +60,18 @@ class RVI04_GapOverload(BaseGate):
     description = "缺口总数超过上限或新增净速率超过上限"
     severity = GateSeverity.WARN
 
-    def evaluate(self, total_open: int, net_rate: float = 0, max_open: int = 15, max_rate: float = 0.8) -> GateResult:
+    def evaluate(
+        self, total_open: int, net_rate: float = 0, max_open: int = 15, max_rate: float = 0.8
+    ) -> GateResult:
         if total_open > max_open or net_rate > max_rate:
             return self.fail_result(
                 message=f"缺口{total_open}个（上限{max_open}），净速率{net_rate:.2f}/章（上限{max_rate}）",
-                details={"total_open": total_open, "max_open": max_open, "net_rate": round(net_rate, 2), "max_rate": max_rate},
+                details={
+                    "total_open": total_open,
+                    "max_open": max_open,
+                    "net_rate": round(net_rate, 2),
+                    "max_rate": max_rate,
+                },
             )
         return self.pass_result(details={"total_open": total_open, "net_rate": round(net_rate, 2)})
 
@@ -75,6 +86,16 @@ class RVI05_GapForgotten(BaseGate):
         if tension < 3 and chapters_unmentioned >= 5:
             return self.fail_result(
                 message=f"缺口'{gap_id}'紧绷度{tension}且{chapters_unmentioned}章未触及",
-                details={"gap_id": gap_id, "tension": tension, "chapters_unmentioned": chapters_unmentioned},
+                details={
+                    "gap_id": gap_id,
+                    "tension": tension,
+                    "chapters_unmentioned": chapters_unmentioned,
+                },
             )
-        return self.pass_result(details={"gap_id": gap_id, "tension": tension, "chapters_unmentioned": chapters_unmentioned})
+        return self.pass_result(
+            details={
+                "gap_id": gap_id,
+                "tension": tension,
+                "chapters_unmentioned": chapters_unmentioned,
+            }
+        )

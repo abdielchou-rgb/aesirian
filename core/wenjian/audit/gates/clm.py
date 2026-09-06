@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 """Conflict Layer Matrix gates (CLM-01 to CLM-03)."""
 
-from .base import BaseGate
 from wenjian.models import GateResult, GateSeverity
+
+from .base import BaseGate
 
 
 class CLM01_SingleLayer(BaseGate):
@@ -17,7 +19,9 @@ class CLM01_SingleLayer(BaseGate):
                 message=f"对抗力仅在{len(active_layers)}层运作：{active_layers}",
                 details={"active_layers": active_layers, "count": len(active_layers)},
             )
-        return self.pass_result(details={"active_layers": active_layers, "count": len(active_layers)})
+        return self.pass_result(
+            details={"active_layers": active_layers, "count": len(active_layers)}
+        )
 
 
 class CLM02_NoCrossover(BaseGate):
@@ -32,7 +36,9 @@ class CLM02_NoCrossover(BaseGate):
                 message=f"在{position_percent:.0f}%处仍无层间交汇场景",
                 details={"position": position_percent, "has_crossover": False},
             )
-        return self.pass_result(details={"position": position_percent, "has_crossover": has_crossover})
+        return self.pass_result(
+            details={"position": position_percent, "has_crossover": has_crossover}
+        )
 
 
 class CLM03_Mismatch(BaseGate):
@@ -45,6 +51,12 @@ class CLM03_Mismatch(BaseGate):
         if abs(external_intensity - internal_intensity) > 3.0:
             return self.fail_result(
                 message=f"外部冲突强度({external_intensity})与内部冲突强度({internal_intensity})不匹配（差异{abs(external_intensity - internal_intensity):.1f}）",
-                details={"external": external_intensity, "internal": internal_intensity, "gap": round(abs(external_intensity - internal_intensity), 1)},
+                details={
+                    "external": external_intensity,
+                    "internal": internal_intensity,
+                    "gap": round(abs(external_intensity - internal_intensity), 1),
+                },
             )
-        return self.pass_result(details={"external": external_intensity, "internal": internal_intensity})
+        return self.pass_result(
+            details={"external": external_intensity, "internal": internal_intensity}
+        )

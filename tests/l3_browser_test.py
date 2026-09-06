@@ -4,11 +4,12 @@ L3 Browser Verification — Playwright on Windows
 
 Run: python tests/l3_browser_test.py
 """
+
 import os
-import sys
-import time
 import socket
 import subprocess
+import sys
+import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
@@ -35,10 +36,12 @@ def wait_http(url: str, timeout: float = 60.0) -> bool:
     while time.time() < deadline:
         try:
             import urllib.request
+
             urllib.request.urlopen(url, timeout=2)
-            return True
         except Exception:
             time.sleep(0.5)
+        else:
+            return True
     return False
 
 
@@ -49,14 +52,23 @@ def main():
     # ── 启动真实后端（uvicorn 子进程） ──
     server = subprocess.Popen(
         [
-            sys.executable, "-m", "uvicorn", "bridge.api_server:app",
-            "--host", "127.0.0.1", "--port", str(port), "--log-level", "warning",
+            sys.executable,
+            "-m",
+            "uvicorn",
+            "bridge.api_server:app",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+            "--log-level",
+            "warning",
         ],
         cwd=ROOT,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        encoding="utf-8", errors="replace",
+        encoding="utf-8",
+        errors="replace",
     )
 
     checks = []
@@ -69,7 +81,9 @@ def main():
             page = browser.new_page(viewport={"width": 1280, "height": 900})
 
             console_errors = []
-            page.on("console", lambda m: console_errors.append(m.text) if m.type == "error" else None)
+            page.on(
+                "console", lambda m: console_errors.append(m.text) if m.type == "error" else None
+            )
 
             # 1. 打开 dashboard
             page.goto(f"{base}/dashboard.html", wait_until="networkidle")
@@ -92,7 +106,9 @@ def main():
             page.screenshot(path=os.path.join(SCREENSHOTS, "02_project_created.png"))
             writing_visible = page.is_visible("#view-writing")
             checks.append(("writing view after create", writing_visible))
-            checks.append(("project title set", (page.text_content("#project-title") or "").strip() != ""))
+            checks.append(
+                ("project title set", (page.text_content("#project-title") or "").strip() != "")
+            )
             print("[L3] writing view:", writing_visible)
 
             # 3. 载入样本章节并提交
@@ -164,7 +180,9 @@ def main():
                         page.locator("#belief-panel .btn-p").click()  # 添加按钮（btn-p 唯一）
                         page.wait_for_timeout(2500)
                         page.screenshot(path=os.path.join(SCREENSHOTS, "04c_belief_added.png"))
-                        new_belief_ok = page.locator("#belief-panel").is_visible() and "水晶" in (page.text_content("#belief-panel") or "")
+                        new_belief_ok = page.locator("#belief-panel").is_visible() and "水晶" in (
+                            page.text_content("#belief-panel") or ""
+                        )
                         checks.append(("belief add persists", new_belief_ok))
                     else:
                         checks.append(("belief add persists", True))
@@ -190,7 +208,9 @@ def main():
             page.evaluate("openPanel('gates')")
             page.wait_for_timeout(800)
             page.screenshot(path=os.path.join(SCREENSHOTS, "04d_gates_summary.png"))
-            summary_ok = page.is_visible("#gates-summary-cards") or page.query_selector(".gate-card")
+            summary_ok = page.is_visible("#gates-summary-cards") or page.query_selector(
+                ".gate-card"
+            )
             checks.append(("gate summary cards", bool(summary_ok)))
             # 切专家模式
             try:
@@ -233,7 +253,12 @@ def main():
                 page.wait_for_timeout(90000)  # LLM 分支生成
                 page.screenshot(path=os.path.join(SCREENSHOTS, "04g_simulation.png"))
                 sim_html = page.inner_html("#sim-result")
-                sim_ok = "世界线" in sim_html or "分支" in sim_html or "张力" in sim_html or len(sim_html) > 200
+                sim_ok = (
+                    "世界线" in sim_html
+                    or "分支" in sim_html
+                    or "张力" in sim_html
+                    or len(sim_html) > 200
+                )
                 checks.append(("simulation tab works", sim_ok))
             except Exception as e:
                 print(f"[L3] simulation degraded: {str(e)[:60]}")
@@ -243,7 +268,9 @@ def main():
             try:
                 page.evaluate("openPanel('diverge')")
                 page.wait_for_timeout(400)
-                page.fill("#div-fragments", "雨夜便利店的暖黄灯光\n抽屉里没有署名的信\n开走的末班地铁")
+                page.fill(
+                    "#div-fragments", "雨夜便利店的暖黄灯光\n抽屉里没有署名的信\n开走的末班地铁"
+                )
                 page.click("#btn-diverge")
                 page.wait_for_timeout(120000)  # 5条世界线 LLM 生成
                 page.screenshot(path=os.path.join(SCREENSHOTS, "04h_divergence.png"))
@@ -274,7 +301,9 @@ def main():
                 page.wait_for_timeout(90000)  # LLM 递归分解
                 page.screenshot(path=os.path.join(SCREENSHOTS, "04j_outline.png"))
                 ol_html = page.inner_html("#ol-result")
-                ol_ok = ("act_" in ol_html or len(ol_html) > 200) and ("客观" in ol_html or "主角" in ol_html)
+                ol_ok = ("act_" in ol_html or len(ol_html) > 200) and (
+                    "客观" in ol_html or "主角" in ol_html
+                )
                 checks.append(("outline tab works", ol_ok))
             except Exception as e:
                 print(f"[L3] outline degraded: {str(e)[:60]}")
@@ -292,14 +321,23 @@ def main():
             page.wait_for_timeout(1500)
             page.screenshot(path=os.path.join(SCREENSHOTS, "05b_chapters_tab.png"))
             chap_html = page.inner_html("#tab-chapters")
-            checks.append(("chapters tab works", ("未命名灵感" not in chap_html and ("章" in chap_html or "章节" in chap_html))))
+            checks.append(
+                (
+                    "chapters tab works",
+                    ("未命名灵感" not in chap_html and ("章" in chap_html or "章节" in chap_html)),
+                )
+            )
 
             # 5.6 项目下拉列表（#07）
-            sel_count = page.evaluate("document.querySelectorAll('#recent-list .recent-item').length")
+            sel_count = page.evaluate(
+                "document.querySelectorAll('#recent-list .recent-item').length"
+            )
             checks.append(("recent projects populated", sel_count >= 1))
 
             # 6. 项目列表持久化（重启后数据仍在 —— L3 级持久化验证）
-            import urllib.request, json as _json
+            import json as _json
+            import urllib.request
+
             resp = urllib.request.urlopen(f"{base}/projects")
             projects = _json.loads(resp.read().decode("utf-8"))
             checks.append(("projects persist", isinstance(projects, list) and len(projects) >= 1))

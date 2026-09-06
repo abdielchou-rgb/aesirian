@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 """Gap Density Audit gates (GDA-01 to GDA-04)."""
 
-from .base import BaseGate
 from wenjian.models import GateResult, GateSeverity
+
+from .base import BaseGate
 
 
 class GDA01_GapFamine(BaseGate):
@@ -21,7 +23,9 @@ class GDA01_GapFamine(BaseGate):
                 message=f"连续3个场景鸿沟密度<{floor}：{last_3}",
                 details={"recent_densities": last_3, "threshold": floor},
             )
-        return self.pass_result(details={"recent_densities": last_3, "below_count": sum(1 for d in last_3 if d < floor)})
+        return self.pass_result(
+            details={"recent_densities": last_3, "below_count": sum(1 for d in last_3 if d < floor)}
+        )
 
 
 class GDA02_GapOverload(BaseGate):
@@ -55,6 +59,7 @@ class GDA03_GapMonotone(BaseGate):
         if not last_5:
             return self.pass_result()
         from collections import Counter
+
         counts = Counter(last_5)
         most_common, freq = counts.most_common(1)[0]
         ratio = freq / len(last_5)

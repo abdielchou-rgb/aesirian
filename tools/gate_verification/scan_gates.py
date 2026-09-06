@@ -5,14 +5,19 @@
   - temp/m2_scan_results.json   (逐样本×逐门禁明细)
   - docs/gate-verification-report.md  (Markdown 报告)
 """
-import json, os, sys, time, datetime
+
+import datetime
+import json
+import os
+import sys
+import time
 
 ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(ROOT, "core"))
 sys.path.insert(0, ROOT)
 
-from wenjian.audit.pipeline import AuditPipeline
 from wenjian.audit.gates import ALL_GATES
+from wenjian.audit.pipeline import AuditPipeline
 
 SAMPLES_JSON = os.path.join(ROOT, "tools", "gate_verification", "samples", "m2_samples.json")
 RESULTS_JSON = os.path.join(ROOT, "temp", "m2_scan_results.json")
@@ -21,7 +26,8 @@ GENRE = "suspense"
 PLATFORM = "webnovel"
 
 # 基线干净文本（洛阳星港第1章 707 字）作为 FP 对照
-BASELINE_TEXT = open(os.path.join(ROOT, "examples", "luoyang", "ch1.txt"), encoding="utf-8").read().strip()
+with open(os.path.join(ROOT, "examples", "luoyang", "ch1.txt"), encoding="utf-8") as _f:
+    BASELINE_TEXT = _f.read().strip()
 
 
 def scan_text(text: str, chapter_index: int = 0) -> list:
@@ -34,34 +40,43 @@ def scan_text(text: str, chapter_index: int = 0) -> list:
         "genre_id": GENRE,
     }
     rep = p.run_full(ctx)
-    out = []
-    for r in rep.gate_results:
-        out.append({
+    return [
+        {
             "gate_id": r.gate_id,
             "name": r.name,
             "severity": r.severity.value,
             "passed": bool(r.passed),
             "skipped": bool(r.skipped),
             "message": r.message[:200],
-        })
-    return out
+        }
+        for r in rep.gate_results
+    ]
 
 
 def summary(results: list) -> dict:
     total = len(results)
     passed = sum(1 for r in results if r["passed"] and not r["skipped"])
     skipped = sum(1 for r in results if r["skipped"])
-    blocked = sum(1 for r in results if not r["passed"] and not r["skipped"] and r["severity"] == "block")
-    warned = sum(1 for r in results if not r["passed"] and not r["skipped"] and r["severity"] == "warn")
+    blocked = sum(
+        1 for r in results if not r["passed"] and not r["skipped"] and r["severity"] == "block"
+    )
+    warned = sum(
+        1 for r in results if not r["passed"] and not r["skipped"] and r["severity"] == "warn"
+    )
     active = total - skipped
     return {
-        "total": total, "passed": passed, "skipped": skipped,
-        "blocked": blocked, "warned": warned, "active": active,
+        "total": total,
+        "passed": passed,
+        "skipped": skipped,
+        "blocked": blocked,
+        "warned": warned,
+        "active": active,
     }
 
 
 def main():
-    samples = json.load(open(SAMPLES_JSON, encoding="utf-8"))
+    with open(SAMPLES_JSON, encoding="utf-8") as _f:
+        samples = json.load(_f)
     print(f"samples: {len(samples)} | gates: {len(ALL_GATES)}")
 
     # 1) 干净基线（FP 参考）
@@ -87,18 +102,27 @@ def main():
                 if r["severity"] != "block" or b["severity"] == "block":
                     continue
             delta.append(r["gate_id"])
-        scanned.append({
-            "id": s["id"], "family": s["family"], "flaw_type": s["flaw_type"],
-            "title": s["title"], "note": s["note"],
-            "summary": summ,
-            "hit_gates": [r["gate_id"] for r in hit_gates],
-            "delta_gates": delta,
-            "delta_block": sum(1 for r in hit_gates if r["gate_id"] in delta and r["severity"] == "block"),
-            "delta_warn": sum(1 for r in hit_gates if r["gate_id"] in delta and r["severity"] == "warn"),
-            "results": res,
-        })
+        scanned.append(
+            {
+                "id": s["id"],
+                "family": s["family"],
+                "flaw_type": s["flaw_type"],
+                "title": s["title"],
+                "note": s["note"],
+                "summary": summ,
+                "hit_gates": [r["gate_id"] for r in hit_gates],
+                "delta_gates": delta,
+                "delta_block": sum(
+                    1 for r in hit_gates if r["gate_id"] in delta and r["severity"] == "block"
+                ),
+                "delta_warn": sum(
+                    1 for r in hit_gates if r["gate_id"] in delta and r["severity"] == "warn"
+                ),
+                "results": res,
+            }
+        )
         if i % 8 == 0:
-            print(f"  scanned {i}/{len(samples)} elapsed={time.time()-t0:.1f}s")
+            print(f"  scanned {i}/{len(samples)} elapsed={time.time() - t0:.1f}s")
 
     # 4) 净新增命中样本数 / 特异性门禁统计
     net_hit_samples = [x for x in scanned if x["delta_block"] + x["delta_warn"] > 0]
@@ -114,25 +138,29 @@ def main():
     fp_blocks = base_summ["blocked"]
 
     # 单门禁有效率: 每个 gate 在 S1/S2 植入样本中命中数（BLOCK/WARN）
-    gate_stats = {gid: 0 for gid in ALL_GATES}
+    gate_stats = dict.fromkeys(ALL_GATES, 0)
     for x in scanned:
         for gid in x["hit_gates"]:
             gate_stats[gid] += 1
     useful_gates = {gid: c for gid, c in gate_stats.items() if c > 0 and gid != "SKIPPED"}
-    specific_gates = {gid: c for gid, c in delta_stats.items()}
+    specific_gates = dict(delta_stats)
 
     # 记录 SKIP 覆盖: 各样本平均 skipped 门禁数
     avg_skipped = round(sum(x["summary"]["skipped"] for x in scanned) / len(scanned), 1)
 
     result = {
         "meta": {
-            "genres": GENRE, "platform": PLATFORM,
+            "genres": GENRE,
+            "platform": PLATFORM,
             "gates_registered": len(ALL_GATES),
             "samples_total": len(samples),
             "scan_time": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         },
-        "baseline": {"text": BASELINE_TEXT[:40], "summary": base_summ,
-                     "baseline_hits": [r for r in baseline if not r["passed"] and not r["skipped"]]},
+        "baseline": {
+            "text": BASELINE_TEXT[:40],
+            "summary": base_summ,
+            "baseline_hits": [r for r in baseline if not r["passed"] and not r["skipped"]],
+        },
         "metrics": {
             "recall": round(recall, 4),
             "hit_samples": len(hit_samples),
@@ -144,7 +172,9 @@ def main():
             "useful_gates_count": len(useful_gates),
             "useful_gates_top": sorted(useful_gates.items(), key=lambda kv: -kv[1])[:40],
             "specific_gates_top": sorted(specific_gates.items(), key=lambda kv: -kv[1])[:30],
-            "zero_delta_samples": [x["id"] for x in scanned if x["delta_block"] + x["delta_warn"] == 0],
+            "zero_delta_samples": [
+                x["id"] for x in scanned if x["delta_block"] + x["delta_warn"] == 0
+            ],
         },
         "samples": scanned,
     }
@@ -152,7 +182,9 @@ def main():
     with open(RESULTS_JSON, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
     print("results written:", RESULTS_JSON)
-    print(f"recall={result['metrics']['recall']} | hit={hit_samples.__len__()}/{len(scanned)} | fp_block={fp_blocks} | useful_gates={len(useful_gates)} | avg_skip={avg_skipped}")
+    print(
+        f"recall={result['metrics']['recall']} | hit={hit_samples.__len__()}/{len(scanned)} | fp_block={fp_blocks} | useful_gates={len(useful_gates)} | avg_skip={avg_skipped}"
+    )
 
 
 if __name__ == "__main__":

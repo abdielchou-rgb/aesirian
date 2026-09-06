@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """角色关系网门禁 — 基于 John Truby《The Anatomy of Story》。
 
 Truby 核心：角色不由他们"是谁"定义，由"和谁有什么关系"定义。
@@ -6,18 +7,27 @@ Truby 核心：角色不由他们"是谁"定义，由"和谁有什么关系"定�
 角色弧光 = 这个关系网络的整体变化。
 """
 
-from .base import BaseGate
 from wenjian.models import GateSeverity
+
+from .base import BaseGate
 
 
 class CR01_RelationshipChange(BaseGate):
     """两个角色之间的关系必须在故事中发生至少一次变化。"""
+
     gate_id = "CR-01"
     name = "关系变化门禁"
     description = "故事中每对主要角色之间的关系必须发生至少一次有意义的变化"
     severity = GateSeverity.WARN
 
-    def evaluate(self, character_a: str, character_b: str, relationship: str, has_changed: bool, change_at_chapter: int = 0) -> GateResult:
+    def evaluate(
+        self,
+        character_a: str,
+        character_b: str,
+        relationship: str,
+        has_changed: bool,
+        change_at_chapter: int = 0,
+    ) -> GateResult:
         if not has_changed:
             return self.fail_result(
                 message=f"角色 {character_a} 和 {character_b} 的 {relationship} 关系从开头到结尾没有变化",
@@ -33,6 +43,7 @@ class CR01_RelationshipChange(BaseGate):
 
 class CR02_WebDensity(BaseGate):
     """关系网络密度——有意义的活跃关系至少占角色数的 50%。"""
+
     gate_id = "CR-02"
     name = "关系网密度门禁"
     description = "有意义的活跃关系至少占角色数的50%"
@@ -43,13 +54,18 @@ class CR02_WebDensity(BaseGate):
         if active_relationships < expected_min:
             return self.fail_result(
                 message=f"有 {character_count} 个角色但只有 {active_relationships} 条活跃关系线（期望至少 {expected_min} 条）",
-                details={"characters": character_count, "active": active_relationships, "expected_min": expected_min},
+                details={
+                    "characters": character_count,
+                    "active": active_relationships,
+                    "expected_min": expected_min,
+                },
             )
         return self.pass_result(details={"active_relations": active_relationships})
 
 
 class CR03_RoleDiversity(BaseGate):
     """关系类型多样性——每个角色至少扮演 2 种关系角色。"""
+
     gate_id = "CR-03"
     name = "角色类型多样性门禁"
     description = "每个主要角色至少扮演2种关系角色"

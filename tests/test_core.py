@@ -1,12 +1,13 @@
 """ToM引擎 + 知识图谱 + 门禁系统集成测试"""
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "core"))
 
-from tom_engine import TheoryOfMindEngine, BeliefSource, TensionType
-from knowledge_graph import TemporalKnowledgeGraph, NodeType, EdgeType
-from consistency_gates import ConsistencyGateSystem, GateLevel
+from consistency_gates import ConsistencyGateSystem
+from knowledge_graph import EdgeType, NodeType, TemporalKnowledgeGraph
+from tom_engine import BeliefSource, TensionType, TheoryOfMindEngine
 
 
 def test_tom_belief_update():
@@ -19,38 +20,20 @@ def test_tom_belief_update():
     tom.reader_knowledge["谁是凶手"] = "王刚"  # 真相：凶手是王刚
 
     # 张伟被欺骗——认为凶手是李娜
-    tom.update_belief(
-        "zhang", "谁是凶手", "李娜",
-        confidence=0.9,
-        source=BeliefSource.DECEPTION
-    )
+    tom.update_belief("zhang", "谁是凶手", "李娜", confidence=0.9, source=BeliefSource.DECEPTION)
 
     # 李娜目击了真相
-    tom.update_belief(
-        "li", "谁是凶手", "王刚",
-        confidence=1.0,
-        source=BeliefSource.DIRECT_WITNESS
-    )
+    tom.update_belief("li", "谁是凶手", "王刚", confidence=1.0, source=BeliefSource.DIRECT_WITNESS)
 
     # 王敏真诚地误信凶手是李娜（推理源=非错误信念）——与李娜目击真凶构成信念冲突
     tom.add_character("wang", "王敏")
-    tom.update_belief(
-        "wang", "谁是凶手", "李娜",
-        confidence=0.8,
-        source=BeliefSource.INFERENCE
-    )
+    tom.update_belief("wang", "谁是凶手", "李娜", confidence=0.8, source=BeliefSource.INFERENCE)
 
     # 检测张力——应该有戏剧反讽（读者知道张伟搞错了）
     tensions = tom.detect_tension()
 
-    has_dramatic_irony = any(
-        t.type == TensionType.DRAMATIC_IRONY
-        for t in tensions
-    )
-    has_belief_conflict = any(
-        t.type == TensionType.BELIEF_CONFLICT
-        for t in tensions
-    )
+    has_dramatic_irony = any(t.type == TensionType.DRAMATIC_IRONY for t in tensions)
+    has_belief_conflict = any(t.type == TensionType.BELIEF_CONFLICT for t in tensions)
 
     assert has_dramatic_irony, "应该有戏剧反讽——读者知道张伟的信念是错的"
     assert has_belief_conflict, "应该有信念冲突——李娜(目击真凶)与王敏(推理误信)信念矛盾"
@@ -73,25 +56,18 @@ def test_tom_recursive_belief():
     tom.add_character("c", "角色C")
 
     # 设置：角色A以为角色B不知道角色C的秘密
-    tom.update_recursive_belief(
-        "a", "b", "角色C是卧底", "不知道",
-        confidence=0.9, depth=2
-    )
+    tom.update_recursive_belief("a", "b", "角色C是卧底", "不知道", confidence=0.9, depth=2)
 
     # 但实际上B知道——这里用 world_beliefs 存储B对世界的事实认知
     tom.update_belief(
-        "b", "角色C是卧底", "知道",
-        confidence=1.0, source=BeliefSource.DIRECT_WITNESS
+        "b", "角色C是卧底", "知道", confidence=1.0, source=BeliefSource.DIRECT_WITNESS
     )
 
     tensions = tom.detect_tension()
-    has_recursive = any(
-        t.type == TensionType.RECURSIVE_MISMATCH
-        for t in tensions
-    )
+    has_recursive = any(t.type == TensionType.RECURSIVE_MISMATCH for t in tensions)
 
     assert has_recursive, "应该有递归错位张力"
-    print(f"[PASS] ToM递归嵌套: 正确检测到递归信念错位")
+    print("[PASS] ToM递归嵌套: 正确检测到递归信念错位")
 
 
 def test_tom_action_validation():
@@ -109,7 +85,7 @@ def test_tom_action_validation():
     no_conflict = tom.validate_action("a", "角色A保护了角色B")
     assert no_conflict is None, "保护朋友不应冲突"
 
-    print(f"[PASS] ToM行动校验: 正确检测行动与信念的一致性")
+    print("[PASS] ToM行动校验: 正确检测行动与信念的一致性")
 
 
 def test_knowledge_graph():
@@ -127,7 +103,7 @@ def test_knowledge_graph():
     conflicts = kg.detect_conflicts("30岁了", "张伟")
     assert len(conflicts) > 0, "年龄矛盾应被检测到"
 
-    no_conflict = kg.detect_conflicts("张伟和李娜在约会", "张伟")
+    kg.detect_conflicts("张伟和李娜在约会", "张伟")
     # 这条没有直接矛盾
 
     # 时序一致性
@@ -139,7 +115,7 @@ def test_knowledge_graph():
     time_conflict = kg.check_temporal_consistency("命案", 2)
     assert time_conflict is not None, "参与早于事件应有冲突"
 
-    print(f"[PASS] 知识图谱: 节点/边/冲突检测/时序一致性全部通过")
+    print("[PASS] 知识图谱: 节点/边/冲突检测/时序一致性全部通过")
 
 
 def test_gate_system():
@@ -161,7 +137,7 @@ def test_gate_system():
     g9_normal = gates.audit_g9_deai_detection(normal_text)
     assert g9_normal is None, "自然文本应通过G9"
 
-    print(f"[PASS] 一致性门禁: G1跳过/G9 AI检测/G9正常文本全部正确")
+    print("[PASS] 一致性门禁: G1跳过/G9 AI检测/G9正常文本全部正确")
 
 
 def test_reader_model():
@@ -210,7 +186,7 @@ def test_cooldown_matrix():
     cooled = matrix.get_cooldown("打脸")
     assert cooled < 3.0, "衰减后冷却值应降低"
 
-    print(f"[PASS] 冷却矩阵: 记录/检测/衰减全部正确")
+    print("[PASS] 冷却矩阵: 记录/检测/衰减全部正确")
 
 
 if __name__ == "__main__":

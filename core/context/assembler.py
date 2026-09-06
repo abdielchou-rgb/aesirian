@@ -3,10 +3,12 @@
 复用 ProjectStore（角色信念/章节/伏笔均已持久化），
 按 ContextLayer 优先级组装，带 token 预算控制与分层可观测。
 """
+
 from __future__ import annotations
 
 import json
-from core.context.engine import ContextLayer, ContextConfig, AssembledContext
+
+from core.context.engine import AssembledContext, ContextConfig, ContextLayer
 
 
 class ContextAssembler:
@@ -18,8 +20,9 @@ class ContextAssembler:
 
     # ─── 主入口 ───
 
-    def assemble(self, project_id: str, user_input: str = "",
-                 current_chapter: int = 0) -> AssembledContext:
+    def assemble(
+        self, project_id: str, user_input: str = "", current_chapter: int = 0
+    ) -> AssembledContext:
         result = AssembledContext()
         budget = self.config.max_tokens
 
@@ -58,9 +61,7 @@ class ContextAssembler:
         p = self.store.get_project(project_id)
         if not p:
             return ""
-        lines = ["## 故事设定",
-                 f"标题：{p.title}",
-                 f"类型：{p.genre}"]
+        lines = ["## 故事设定", f"标题：{p.title}", f"类型：{p.genre}"]
         if p.premise:
             lines.append(f"前提：{p.premise[:200]}")
         return "\n".join(lines)
@@ -81,8 +82,10 @@ class ContextAssembler:
             goals = self._load_json(c.goals_json, [])
             for prop, b in list(beliefs.items())[:5]:
                 if isinstance(b, dict):
-                    lines.append(f"- 相信「{prop}」= {b.get('value')}"
-                                 f"（置信 {float(b.get('confidence', 1.0)):.0%}）")
+                    lines.append(
+                        f"- 相信「{prop}」= {b.get('value')}"
+                        f"（置信 {float(b.get('confidence', 1.0)):.0%}）"
+                    )
             for g in goals[:3]:
                 d = g.get("description", g) if isinstance(g, dict) else g
                 if d:
@@ -96,7 +99,7 @@ class ContextAssembler:
         picked = chapters
         if self.config.enable_retrieval and user_input:
             picked = self._retrieve_relevant(chapters, user_input)
-        picked = picked[-self.config.recent_chapters:]
+        picked = picked[-self.config.recent_chapters :]
         if not picked:
             return ""
         lines = ["## 最近章节"]
@@ -129,8 +132,7 @@ class ContextAssembler:
         if not threads:
             return ""
         lines = ["## 派生记忆", "### 未闭合线索（须回收）"]
-        for t in threads[:10]:
-            lines.append(f"- {t.description[:80]}")
+        lines.extend(f"- {t.description[:80]}" for t in threads[:10])
         return "\n".join(lines)
 
     # ─── 工具 ───

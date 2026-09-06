@@ -3,12 +3,9 @@
 Includes Netflix-style attention risk dashboard (drop-off analysis).
 """
 
-import json
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
-
-from .audit.gates import ALL_GATES
+from typing import Any
 
 
 def generate_html_report(
@@ -22,7 +19,9 @@ def generate_html_report(
     status = report_data.get("overall_status", "unknown")
     total = len(gates)
     passed = sum(1 for g in gates if g.get("passed", True))
-    blocked = sum(1 for g in gates if not g.get("passed", True) and g.get("severity", "") == "block")
+    blocked = sum(
+        1 for g in gates if not g.get("passed", True) and g.get("severity", "") == "block"
+    )
     warned = sum(1 for g in gates if not g.get("passed", True) and g.get("severity", "") == "warn")
 
     gate_rows = ""
@@ -59,13 +58,13 @@ def generate_html_report(
         for ch in chapter_results:
             flipped = "✅" if ch.get("scene_flipped") else "❌"
             chapters_html += f"""<tr>
-                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get('chapter_index', '?')+1}</td>
-                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get('char_count', 0)}</td>
-                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get('gap_density', 0):.2f}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get("chapter_index", "?") + 1}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get("char_count", 0)}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get("gap_density", 0):.2f}</td>
                 <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{flipped}</td>
-                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get('touchpoints', 0)}</td>
-                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get('direct_emotions', 0)}</td>
-                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get('first_hook_position', 'N/A')}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get("touchpoints", 0)}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get("direct_emotions", 0)}</td>
+                <td style="padding:6px 10px;border-bottom:1px solid #e5e7eb">{ch.get("first_hook_position", "N/A")}</td>
             </tr>"""
         chapters_html += "</table>"
 
@@ -78,7 +77,7 @@ def generate_html_report(
             pct = max(5, int((d / max(max_d, 0.1)) * 100))
             color = "#22c55e" if 1.0 <= d <= 4.0 else ("#f59e0b" if d < 1.0 else "#ef4444")
             gap_bars += f"""<div style="margin:4px 0;display:flex;align-items:center;">
-                <span style="width:30px;font-size:0.8em;color:#666">ch{i+1}</span>
+                <span style="width:30px;font-size:0.8em;color:#666">ch{i + 1}</span>
                 <div style="width:{pct}%;height:20px;background:{color};border-radius:3px;min-width:8px"></div>
                 <span style="margin-left:6px;font-size:0.8em">{d:.2f}</span>
             </div>"""
@@ -107,7 +106,7 @@ def generate_html_report(
 <body>
 <div class="header">
     <h1>📖 {novel_name}</h1>
-    <p>文鉴 WenJian 审计报告 · {datetime.now().strftime('%Y-%m-%d %H:%M')} · 状态: {'✅' if status == 'pass' else '⚠️' if status == 'warn' else '❌'} {status.upper()}</p>
+    <p>文鉴 WenJian 审计报告 · {datetime.now().strftime("%Y-%m-%d %H:%M")} · 状态: {"✅" if status == "pass" else "⚠️" if status == "warn" else "❌"} {status.upper()}</p>
 </div>
 
 <div class="stats">
@@ -204,17 +203,19 @@ def generate_attention_dashboard(
             reasons.append("对话密度过低")
 
         risk = min(risk, 100)
-        risk_scores.append({
-            "chapter": i + 1,
-            "risk": risk,
-            "level": "high" if risk >= 40 else "medium" if risk >= 20 else "low",
-            "reasons": reasons,
-            "gap_density": gd,
-            "touchpoints": tp,
-            "emotion_ratio": er,
-            "hook_pos": hp,
-            "flipped": ch.get("scene_flipped", True),
-        })
+        risk_scores.append(
+            {
+                "chapter": i + 1,
+                "risk": risk,
+                "level": "high" if risk >= 40 else "medium" if risk >= 20 else "low",
+                "reasons": reasons,
+                "gap_density": gd,
+                "touchpoints": tp,
+                "emotion_ratio": er,
+                "hook_pos": hp,
+                "flipped": ch.get("scene_flipped", True),
+            }
+        )
 
     avg_risk = round(sum(r["risk"] for r in risk_scores) / max(len(risk_scores), 1), 1)
     high_risk = sum(1 for r in risk_scores if r["level"] == "high")
@@ -222,13 +223,25 @@ def generate_attention_dashboard(
 
     bars = ""
     for r in risk_scores:
-        color = "#ef4444" if r["level"] == "high" else "#f59e0b" if r["level"] == "medium" else "#22c55e"
-        label = "🔴高风险" if r["level"] == "high" else "🟡中风险" if r["level"] == "medium" else "🟢低风险"
+        color = (
+            "#ef4444"
+            if r["level"] == "high"
+            else "#f59e0b"
+            if r["level"] == "medium"
+            else "#22c55e"
+        )
+        label = (
+            "🔴高风险"
+            if r["level"] == "high"
+            else "🟡中风险"
+            if r["level"] == "medium"
+            else "🟢低风险"
+        )
         bar_width = max(8, r["risk"])
         reasons_text = " | ".join(r["reasons"]) if r["reasons"] else "正常"
         bars += f"""<div style="margin:6px 0;display:flex;align-items:center;">
-            <span style="width:40px;font-size:0.85em;color:#666">ch{r['chapter']}</span>
-            <div style="width:{bar_width}%;height:22px;background:{color};border-radius:4px;min-width:8px;display:flex;align-items:center;padding-left:6px;color:white;font-size:0.75em;font-weight:bold">{r['risk']}</div>
+            <span style="width:40px;font-size:0.85em;color:#666">ch{r["chapter"]}</span>
+            <div style="width:{bar_width}%;height:22px;background:{color};border-radius:4px;min-width:8px;display:flex;align-items:center;padding-left:6px;color:white;font-size:0.75em;font-weight:bold">{r["risk"]}</div>
             <span style="margin-left:8px;font-size:0.78em;color:#666">{label} {reasons_text[:40]}</span>
         </div>"""
 
@@ -237,13 +250,13 @@ def generate_attention_dashboard(
     for r in risk_scores:
         fl = "✅" if r["flipped"] else "❌"
         timeline += f"""<tr>
-            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">ch{r['chapter']}</td>
-            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r['risk']}</td>
-            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r['gap_density']:.2f}</td>
-            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r['touchpoints']}</td>
-            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r['emotion_ratio']:.2f}</td>
+            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">ch{r["chapter"]}</td>
+            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r["risk"]}</td>
+            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r["gap_density"]:.2f}</td>
+            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r["touchpoints"]}</td>
+            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r["emotion_ratio"]:.2f}</td>
             <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{fl}</td>
-            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r['hook_pos']}</td>
+            <td style="padding:4px 8px;border-bottom:1px solid #e5e7eb">{r["hook_pos"]}</td>
         </tr>"""
 
     html = f"""<!DOCTYPE html>
@@ -273,12 +286,12 @@ def generate_attention_dashboard(
 <body>
 <div class="header">
     <h1>🎬 {novel_name} — 注意力风险看板</h1>
-    <p>奈飞式 drop-off 风险分析 · {datetime.now().strftime('%Y-%m-%d %H:%M')} · {len(chapter_results)} 章</p>
+    <p>奈飞式 drop-off 风险分析 · {datetime.now().strftime("%Y-%m-%d %H:%M")} · {len(chapter_results)} 章</p>
 </div>
 
 <div class="stats">
     <div class="stat-card"><div class="stat-number" style="color:#94a3b8">{len(chapter_results)}</div><div class="stat-label">章节数</div></div>
-    <div class="stat-card"><div class="stat-number" style="color:{( '#22c55e' if avg_risk < 20 else '#f59e0b' if avg_risk < 40 else '#ef4444' )}">{avg_risk}</div><div class="stat-label">平均风险分</div></div>
+    <div class="stat-card"><div class="stat-number" style="color:{("#22c55e" if avg_risk < 20 else "#f59e0b" if avg_risk < 40 else "#ef4444")}">{avg_risk}</div><div class="stat-label">平均风险分</div></div>
     <div class="stat-card"><div class="stat-number" style="color:#f59e0b">{medium_risk}</div><div class="stat-label">中风险章节</div></div>
     <div class="stat-card"><div class="stat-number" style="color:#ef4444">{high_risk}</div><div class="stat-label">高风险章节</div></div>
 </div>

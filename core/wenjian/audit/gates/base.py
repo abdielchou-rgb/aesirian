@@ -1,6 +1,7 @@
 """Base gate class for all 38 story gates."""
 
 from abc import ABC, abstractmethod
+
 from wenjian.models import GateResult, GateSeverity
 
 
@@ -33,7 +34,9 @@ class BaseGate(ABC):
             details=details or {},
         )
 
-    def fail_result(self, message: str = "", details: dict = None, score: float = None) -> GateResult:
+    def fail_result(
+        self, message: str = "", details: dict = None, score: float = None
+    ) -> GateResult:
         return GateResult(
             gate_id=self.gate_id,
             name=self.name,

@@ -14,17 +14,17 @@ NSEF (Narrative State Exchange Format)
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field, asdict
-from typing import Optional
-from enum import Enum
-from datetime import datetime
+
 import json
 import uuid
-
+from dataclasses import asdict, dataclass, field
+from datetime import datetime
+from enum import Enum
 
 # ═══════════════════════════════════════════
 # 枚举定义
 # ═══════════════════════════════════════════
+
 
 class Tone(Enum):
     COLD_REALISTIC = "冷峻写实"
@@ -64,13 +64,14 @@ class NarrativeArc(Enum):
 
 class GateResult(Enum):
     BLOCK = "block"  # 不通过，不显示
-    WARN = "warn"    # 通过但标注
-    PASS = "pass"    # 完全通过
+    WARN = "warn"  # 通过但标注
+    PASS = "pass"  # 完全通过
 
 
 # ═══════════════════════════════════════════
 # 核心数据结构
 # ═══════════════════════════════════════════
+
 
 @dataclass
 class BeliefState:
@@ -79,12 +80,13 @@ class BeliefState:
     这是整个NSEF中最关键的数据结构——它是ToM引擎的种子。
     每条信念记录了角色对世界、对他人的认知，以及认知的可信度。
     """
-    proposition: str           # 信念命题，如 "谁是凶手"
+
+    proposition: str  # 信念命题，如 "谁是凶手"
     value: bool | str | None  # 信念内容，如 "张伟"
-    confidence: float          # 可信度 0.0-1.0
-    updated_at_chapter: int    # 在哪个章节更新的
-    source: str = ""           # 信息来源（目击/二手信息/推理/欺骗）
-    is_erroneous: bool = False # 是否为错误信念（被欺骗或误解）
+    confidence: float  # 可信度 0.0-1.0
+    updated_at_chapter: int  # 在哪个章节更新的
+    source: str = ""  # 信息来源（目击/二手信息/推理/欺骗）
+    is_erroneous: bool = False  # 是否为错误信念（被欺骗或误解）
 
 
 @dataclass
@@ -94,16 +96,18 @@ class SecretState:
     秘密是叙事张力的核心来源。
     可配置秘密的知情范围（哪些角色知道、读者是否知道、作者保留）。
     """
+
     secret: str
     known_to: list[str] = field(default_factory=lambda: ["reader"])  # 知道秘密的角色列表
     hidden_from: list[str] = field(default_factory=list)  # 不知道的角色列表
-    reveal_at_chapter: Optional[int] = None  # 计划揭示章节（可选）
+    reveal_at_chapter: int | None = None  # 计划揭示章节（可选）
     is_revealed: bool = False
 
 
 @dataclass
 class GoalState:
     """角色的当前活跃目标"""
+
     goal: str
     priority: int = 1
     active: bool = True
@@ -117,6 +121,7 @@ class CharacterSeed:
     这是ToM引擎的输入。Æsir的故事单元经过NLP提取后，
     填充到这里作为角色的"信念初始值"。
     """
+
     name: str
     role: str = ""  # 在故事中的角色描述
     beliefs: dict[str, BeliefState] = field(default_factory=dict)
@@ -128,6 +133,7 @@ class CharacterSeed:
 @dataclass
 class SG5Structure:
     """SG5 五诫命结构标记"""
+
     inciting_event: str = ""
     turning_point: str = ""
     crisis: str = ""
@@ -141,12 +147,13 @@ class OpenThread:
 
     每个线索是"一个等待回收的问题"。
     """
+
     thread_id: str = ""
     description: str = ""
     created_at_chapter: int = 0
     expected_resolution_type: str = ""  # reveal / converge / sacrifice / etc
     is_resolved: bool = False
-    resolved_at_chapter: Optional[int] = None
+    resolved_at_chapter: int | None = None
 
 
 @dataclass
@@ -156,6 +163,7 @@ class StyleFingerprint:
     记录了用户在当前时间点的风格偏好。
     深度层会根据这个指纹调整生成器的输出风格。
     """
+
     tone_distribution: dict[str, float] = field(default_factory=dict)
     conflict_preference: list[str] = field(default_factory=list)
     sentence_length_avg: float = 0.0
@@ -171,6 +179,7 @@ class GenreContract:
     每种类型有一套"读者期待"的约束条件。
     这个契约会传递给生成器和一致性门禁，作为检查标准。
     """
+
     genre: Genre = Genre.GROWTH
     reader_expectations: list[str] = field(default_factory=list)
     core_rhythm: str = ""
@@ -185,6 +194,7 @@ class NarrativeStatePackage:
 
     这是整个Æsirian生态系统中数据交换的基本单元。
     """
+
     # 元数据
     package_id: str = field(default_factory=lambda: uuid.uuid4().hex[:12])
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
@@ -197,7 +207,7 @@ class NarrativeStatePackage:
     # 结构信息
     structure: SG5Structure = field(default_factory=SG5Structure)
     arc_type: NarrativeArc = NarrativeArc.THREE_ACT
-    genre_contract: Optional[GenreContract] = None
+    genre_contract: GenreContract | None = None
 
     # 角色种子（ToM引擎的输入）
     characters: list[CharacterSeed] = field(default_factory=list)
@@ -217,7 +227,7 @@ class NarrativeStatePackage:
         return json.dumps(asdict(self), ensure_ascii=False, indent=2, default=str)
 
     @classmethod
-    def from_json(cls, data: str) -> "NarrativeStatePackage":
+    def from_json(cls, data: str) -> NarrativeStatePackage:
         raw = json.loads(data)
         # 重建嵌套对象
         if raw.get("genre_contract") and isinstance(raw["genre_contract"], dict):

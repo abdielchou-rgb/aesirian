@@ -2,6 +2,7 @@
 风格一致性基线测试（产品化遗留）— 验证生成质量管线的风格一致性评分有区分度
 Run: python -X utf8 -m pytest tests/test_style_baseline.py -v
 """
+
 import pytest
 
 from core.generation.pipeline import GenerationPipeline

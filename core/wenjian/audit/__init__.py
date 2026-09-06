@@ -1,2 +1,2 @@
-from .gates import ALL_GATES, list_gates, get_gate
+from .gates import ALL_GATES, get_gate, list_gates
 from .pipeline import AuditPipeline, pipeline

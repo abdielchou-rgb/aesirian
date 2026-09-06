@@ -9,6 +9,7 @@
 加载器：启动时扫描 plugins/，验证 spec，注册到 PLUGINS 注册表。
 API 端点在 bridge/api_server.py 中暴露 /plugins。
 """
+
 from __future__ import annotations
 
 import importlib.util
@@ -17,7 +18,9 @@ import os
 import sys
 from dataclasses import dataclass, field
 
-ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # core/plugins/ -> core/ -> 项目根
+ROOT = os.path.dirname(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+)  # core/plugins/ -> core/ -> 项目根
 PLUGINS_DIR = os.path.join(ROOT, "plugins")
 
 VALID_TYPES = {"gate", "analyzer"}
@@ -59,8 +62,10 @@ def _load_spec(dir_path: str) -> PluginSpec | None:
             _load_errors.append(f"{dir_path}: missing name/entry_point")
             return None
         return PluginSpec(
-            name=raw["name"], version=raw.get("version", "0.0.0"),
-            type=raw["type"], entry_point=raw["entry_point"],
+            name=raw["name"],
+            version=raw.get("version", "0.0.0"),
+            type=raw["type"],
+            entry_point=raw["entry_point"],
             description=raw.get("description", ""),
             permissions=raw.get("permissions", []),
             dir_path=dir_path,
@@ -89,10 +94,11 @@ def _load_plugin(spec: PluginSpec) -> object | None:
                 _load_errors.append(f"{spec.name}: class {target} not found")
                 return None
             return cls()
-        return module  # 函数式插件：直接用模块级函数
     except Exception as e:
         _load_errors.append(f"{spec.name}: load failed — {e}")
         return None
+    else:
+        return module  # 函数式插件：直接用模块级函数
 
 
 def load_plugins() -> int:
@@ -126,22 +132,26 @@ def run_gate_plugins(text: str, context: dict | None = None) -> list[dict]:
             level = r.get("level", "PASS")
             if level not in VALID_LEVELS:
                 level = "WARN"
-            results.append({
-                "gate_id": f"PLUGIN::{name}",
-                "gate_name": p.spec.description or name,
-                "level": level,
-                "message": str(r.get("message", ""))[:200],
-                "suggestion": str(r.get("suggestion", ""))[:120],
-                "plugin": name,
-            })
+            results.append(
+                {
+                    "gate_id": f"PLUGIN::{name}",
+                    "gate_name": p.spec.description or name,
+                    "level": level,
+                    "message": str(r.get("message", ""))[:200],
+                    "suggestion": str(r.get("suggestion", ""))[:120],
+                    "plugin": name,
+                }
+            )
         except Exception as e:
-            results.append({
-                "gate_id": f"PLUGIN::{name}",
-                "gate_name": f"插件 {name} 执行出错",
-                "level": "WARN",
-                "message": str(e)[:150],
-                "plugin": name,
-            })
+            results.append(
+                {
+                    "gate_id": f"PLUGIN::{name}",
+                    "gate_name": f"插件 {name} 执行出错",
+                    "level": "WARN",
+                    "message": str(e)[:150],
+                    "plugin": name,
+                }
+            )
     return results
 
 
@@ -165,8 +175,10 @@ def run_analyzer_plugins(text: str) -> dict[str, float]:
 def list_plugins() -> list[dict]:
     return [
         {
-            "name": p.spec.name, "version": p.spec.version,
-            "type": p.spec.type, "description": p.spec.description,
+            "name": p.spec.name,
+            "version": p.spec.version,
+            "type": p.spec.type,
+            "description": p.spec.description,
             "permissions": p.spec.permissions,
         }
         for p in PLUGINS.values()

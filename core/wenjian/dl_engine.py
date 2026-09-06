@@ -26,10 +26,11 @@ Author: WenJian v4.0
 """
 
 from __future__ import annotations
-import math
+
 import logging
-from typing import Optional, Any
+import math
 from collections import Counter
+from typing import Any
 
 logger = logging.getLogger("wenjian.dl_engine")
 
@@ -94,9 +95,9 @@ class DLEngine:
 
     # 按优先级排序的候选模型列表
     CANDIDATE_MODELS = [
-        "paraphrase-multilingual-MiniLM-L12-v2",   # 384d, 轻量首选
-        "paraphrase-multilingual-mpnet-base-v2",    # 768d
-        "distiluse-base-multilingual-cased-v2",     # 512d
+        "paraphrase-multilingual-MiniLM-L12-v2",  # 384d, 轻量首选
+        "paraphrase-multilingual-mpnet-base-v2",  # 768d
+        "distiluse-base-multilingual-cased-v2",  # 512d
     ]
 
     def __init__(self):
@@ -105,7 +106,7 @@ class DLEngine:
         self._embedding_dim: int = 0
         self._available: bool = False
         self._tried_import: bool = False
-        self._import_error: Optional[str] = None
+        self._import_error: str | None = None
 
         # TF-IDF 回退
         self._tfidf_vectorizer = None
@@ -302,19 +303,17 @@ class DLEngine:
                     self._embedding_dim = test_emb.shape[1]
 
                     self._available = True
-                    logger.info(
-                        f"DL 引擎已激活: {model_name} ({self._embedding_dim}d)"
-                    )
-                    return True
+                    logger.info(f"DL 引擎已激活: {model_name} ({self._embedding_dim}d)")
 
                 except Exception as e:
                     logger.warning(f"模型 {model_name} 加载失败: {e}")
                     continue
+                else:
+                    return True
 
             # 所有候选模型都失败
             self._import_error = "所有候选模型加载失败"
             logger.warning("所有 sentence-transformers 模型加载失败，将使用 TF-IDF 回退")
-            return False
 
         except ImportError as e:
             self._import_error = f"sentence-transformers 未安装: {e}"
@@ -326,7 +325,9 @@ class DLEngine:
 
         except Exception as e:
             self._import_error = f"未知错误: {e}"
-            logger.error(f"DL 引擎初始化失败: {e}")
+            logger.exception("DL 引擎初始化失败")
+            return False
+        else:
             return False
 
     def _encode_dl(self, text: str) -> list[float]:
@@ -370,7 +371,7 @@ class DLEngine:
             TF-IDF 特征向量（高频 bigram 的加权频率）
         """
         # 提取中文 bigram
-        chars = [c for c in text if '一' <= c <= '鿿']
+        chars = [c for c in text if "一" <= c <= "鿿"]
         if len(chars) < 2:
             return [0.0] * 100
 
@@ -408,7 +409,7 @@ class DLEngine:
         # 统计每个 bigram 出现在多少篇文档中
         bigram_doc_count: dict[str, int] = {}
         for doc in corpus:
-            chars = [c for c in doc if '一' <= c <= '鿿']
+            chars = [c for c in doc if "一" <= c <= "鿿"]
             seen = set()
             for i in range(len(chars) - 1):
                 bg = chars[i] + chars[i + 1]
@@ -438,7 +439,7 @@ class DLEngine:
             a = a[:min_len]
             b = b[:min_len]
 
-        dot = sum(ai * bi for ai, bi in zip(a, b))
+        dot = sum(ai * bi for ai, bi in zip(a, b, strict=True))
         norm_a = math.sqrt(sum(ai * ai for ai in a))
         norm_b = math.sqrt(sum(bi * bi for bi in b))
 
@@ -452,7 +453,7 @@ class DLEngine:
 # 单例工厂
 # ═══════════════════════════════════════════════════════════════════════════
 
-_dl_engine_instance: Optional[DLEngine] = None
+_dl_engine_instance: DLEngine | None = None
 
 
 def get_dl_engine() -> DLEngine:

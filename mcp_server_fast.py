@@ -10,13 +10,13 @@ Replaces legacy stdio-only server with:
 """
 
 from __future__ import annotations
-from typing import Optional, Annotated
-from pydantic import BaseModel, Field
-from fastmcp import FastMCP
-from contextlib import asynccontextmanager
+
 import os
 import sys
-import asyncio
+from contextlib import asynccontextmanager
+
+from fastmcp import FastMCP
+from pydantic import BaseModel, Field
 
 # Setup paths
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -30,6 +30,7 @@ mcp = FastMCP("aesirian")
 
 
 # ─── Tool Input Models ───
+
 
 class AnalyzeChapterInput(BaseModel):
     text: str = Field(description="Chapter text to analyze", min_length=10)
@@ -80,13 +81,16 @@ class DemoFourCardsInput(BaseModel):
 
 # ─── Helper Functions ───
 
+
 def _get_orchestrator():
     from core.orchestrator import Orchestrator
     from core.persistence.store import ProjectStore
+
     return Orchestrator(store=ProjectStore())
 
 
 # ─── MCP Tools ───
+
 
 @mcp.tool()
 async def analyze_chapter(input: AnalyzeChapterInput) -> dict:
@@ -95,6 +99,7 @@ async def analyze_chapter(input: AnalyzeChapterInput) -> dict:
     Returns pass/warn/block results with overall score.
     """
     from core.wenjian.audit.pipeline import AuditPipeline
+
     pipe = AuditPipeline()
     ctx = pipe._enrich_context({"text": input.text, "title": "mcp"})
     report = pipe.run_full(ctx)
@@ -114,6 +119,7 @@ async def style_fingerprint(input: StyleFingerprintInput) -> dict:
     Extract style fingerprint: 6-dim radar (虚词/词汇/句长/标点/对话/感官) + sensory distribution.
     """
     from core.wenjian.fingerprint import extract_style_fingerprint, generate_style_dashboard
+
     sf = extract_style_fingerprint(input.text, novel_name="mcp")
     return generate_style_dashboard(sf)
 
@@ -127,8 +133,10 @@ async def simulate(input: SimulateInput) -> dict:
     orch = _get_orchestrator()
     try:
         return orch.simulate_hypothesis(
-            input.project_id, input.hypothesis,
-            input.belief_changes, 3,
+            input.project_id,
+            input.hypothesis,
+            input.belief_changes,
+            3,
         )
     except ValueError as e:
         return {"error": str(e)}
@@ -157,14 +165,15 @@ async def tom_query(input: TomQueryInput) -> dict:
         mg = orch.get_mind_grid_data(input.project_id)
     except ValueError as e:
         return {"error": str(e)}
-    chars = []
-    for c in mg.get("characters", []):
-        chars.append({
+    chars = [
+        {
             "name": c.get("name"),
             "world_beliefs": c.get("world_beliefs", {}),
             "active_goals": c.get("active_goals", []),
             "secret_count": c.get("secret_count", 0),
-        })
+        }
+        for c in mg.get("characters", [])
+    ]
     return {
         "characters": chars,
         "tension_points": mg.get("tension_points", []),
@@ -187,9 +196,12 @@ async def generate(input: GenerateInput) -> dict:
     Requires LLM env keys (OPENAI_API_KEY, DEEPSEEK_API_KEY, etc.).
     """
     from core.pydantic_ai_engine import get_pydantic_ai_engine
+
     engine = get_pydantic_ai_engine()
     if not engine.available():
-        return {"error": "LLM unavailable — set OPENAI_API_KEY / DEEPSEEK_API_KEY / ANTHROPIC_API_KEY / GOOGLE_API_KEY"}
+        return {
+            "error": "LLM unavailable — set OPENAI_API_KEY / DEEPSEEK_API_KEY / ANTHROPIC_API_KEY / GOOGLE_API_KEY"
+        }
 
     context = {"characters": [], "current_chapter": 1}
     text = engine.generate_chapter(input.premise, context, 300)
@@ -210,13 +222,17 @@ async def export_markdown(input: ExportMarkdownInput) -> dict:
         return {"error": f"project {input.project_id} not found"}
 
     import tempfile
+
     from core.export.exporter import export_project_markdown
-    tmp = tempfile.NamedTemporaryFile(mode="w", suffix=".md", delete=False, encoding="utf-8")
-    tmp.close()
-    export_project_markdown(project, tmp.name)
-    with open(tmp.name, encoding="utf-8") as f:
+
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".md", delete=False, encoding="utf-8"
+    ) as tmp:
+        tmp_path = tmp.name
+    export_project_markdown(project, tmp_path)
+    with open(tmp_path, encoding="utf-8") as f:
         content = f.read()
-    os.unlink(tmp.name)
+    os.unlink(tmp_path)
     return {"markdown": content, "chapters": len(project.chapters)}
 
 
@@ -227,6 +243,7 @@ async def assemble_from_sample_story(input: AssembleFromSampleInput) -> dict:
     beats + chapter beats + sample score). LLM-enhanced, rule-driven offline fallback.
     """
     from core.diff_engine import forward_derive
+
     project = forward_derive(input.text)
     return {
         "project": project.model_dump(),
@@ -240,8 +257,7 @@ async def edit_four_cards(input: EditFourCardsInput) -> dict:
     FOUR-CARD stage B: author edits one card -> propagation diffs (never silent).
     Pass project JSON as displayed + CardEdit; optional rulings accept/reject each diff.
     """
-    from core.diff_engine import apply_diff, propose_diff
-    from core.diff_engine import CardEdit
+    from core.diff_engine import CardEdit, apply_diff, propose_diff
     from core.four_cards import FourCardProject
 
     try:
@@ -275,9 +291,11 @@ async def demo_luoyang(input: DemoFourCardsInput) -> dict:
     if not os.path.exists(demo_path):
         return {"error": "demo json missing — run: python tools/seed_demo_data.py"}
     import json as _json
+
     with open(demo_path, encoding="utf-8") as f:
         project = _json.load(f)
     from core.four_cards import FourCardProject
+
     p = FourCardProject.model_validate(project)
     return {
         "project": p.model_dump(),
@@ -289,10 +307,12 @@ async def demo_luoyang(input: DemoFourCardsInput) -> dict:
 
 # ─── Health Check ───
 
+
 @mcp.tool()
 async def health_check() -> dict:
     """Health check endpoint."""
     from core.observability import health_check as obs_health
+
     return {
         "status": "healthy",
         "service": "aesirian-mcp",
@@ -303,11 +323,13 @@ async def health_check() -> dict:
 
 # ─── Lifespan ───
 
+
 @asynccontextmanager
 async def lifespan(app: FastMCP):
     """Application lifespan handler."""
     # Startup
     from core.observability import configure_observability
+
     configure_observability()
     yield
     # Shutdown (cleanup if needed)
@@ -317,6 +339,7 @@ mcp.lifespan = lifespan
 
 
 # ─── Entry Points ───
+
 
 def run_stdio():
     """Run MCP server over stdio (for Claude Desktop)."""
@@ -347,6 +370,7 @@ def run_http(host: str = "127.0.0.1", port: int = 8765):
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(description="Æsirian MCP Server")
     parser.add_argument("--transport", choices=["stdio", "sse", "http"], default="stdio")
     parser.add_argument("--host", default="127.0.0.1")

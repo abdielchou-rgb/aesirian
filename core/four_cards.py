@@ -12,6 +12,7 @@ diff_engine.Diff 提案浮出，作者批准才落地（铁律：永不静默改
 实现说明：计划书中以 @dataclass 示意，工程实现采用 pydantic BaseModel，
 字段与默认值完全对齐，以获得模型序列化（MCP 传输 / LLM 结构化输出）能力。
 """
+
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
@@ -76,7 +77,7 @@ class FourCardProject(BaseModel):
     # ─── 便捷构造 ───
 
     @classmethod
-    def empty(cls) -> "FourCardProject":
+    def empty(cls) -> FourCardProject:
         return cls(biographies=[], framework=[], chapters=[], sample=SampleStory())
 
     def add_diff(self, diff) -> None:

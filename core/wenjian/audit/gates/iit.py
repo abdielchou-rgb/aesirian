@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 """Inciting Incident Timer gates (IIT-01 to IIT-03)."""
 
-from .base import BaseGate
 from wenjian.models import GateResult, GateSeverity
+
+from .base import BaseGate
 
 
 class IIT01_Timing(BaseGate):
@@ -15,11 +17,22 @@ class IIT01_Timing(BaseGate):
         if position_percent > deadline:
             return self.fail_result(
                 message=f"激励事件在{position_percent:.0f}%处发生，超过{deadline:.0f}%的时限",
-                details={"position": position_percent, "deadline": deadline, "overdue_by": round(position_percent - deadline, 1)},
+                details={
+                    "position": position_percent,
+                    "deadline": deadline,
+                    "overdue_by": round(position_percent - deadline, 1),
+                },
             )
         margin = deadline - position_percent
         status = "临界" if margin < 5 else "正常"
-        return self.pass_result(details={"position": position_percent, "deadline": deadline, "margin": round(margin, 1), "status": status})
+        return self.pass_result(
+            details={
+                "position": position_percent,
+                "deadline": deadline,
+                "margin": round(margin, 1),
+                "status": status,
+            }
+        )
 
 
 class IIT02_DualDesire(BaseGate):

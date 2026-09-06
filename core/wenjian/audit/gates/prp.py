@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 """Platform Rhythm gates (PRP-01 to PRP-03)."""
 
-from .base import BaseGate
 from wenjian.models import GateResult, GateSeverity
+
+from .base import BaseGate
 
 
 class PRP01_TemplateMismatch(BaseGate):
@@ -26,8 +28,15 @@ class PRP02_HookOverdue(BaseGate):
     description = "首个钩子必须在平台指定的字数限制内出现"
     severity = GateSeverity.WARN
 
-    def evaluate(self, first_hook_position: int, platform: str = "webnovel", hook_limit: int = None) -> GateResult:
-        limits = {"webnovel": 150, "streaming_first": 300, "publication_novel": 99999, "literary_fiction": 99999}
+    def evaluate(
+        self, first_hook_position: int, platform: str = "webnovel", hook_limit: int = None
+    ) -> GateResult:
+        limits = {
+            "webnovel": 150,
+            "streaming_first": 300,
+            "publication_novel": 99999,
+            "literary_fiction": 99999,
+        }
         limit = hook_limit if hook_limit is not None else limits.get(platform, 150)
         if first_hook_position > limit:
             return self.fail_result(
@@ -47,6 +56,12 @@ class PRP03_ClimaxGap(BaseGate):
         if chapters_since_last > max_interval:
             return self.fail_result(
                 message=f"距上次小高潮已{chapters_since_last}章（{platform}模板上限{max_interval}章）",
-                details={"chapters_since_last": chapters_since_last, "max_interval": max_interval, "platform": platform},
+                details={
+                    "chapters_since_last": chapters_since_last,
+                    "max_interval": max_interval,
+                    "platform": platform,
+                },
             )
-        return self.pass_result(details={"chapters_since_last": chapters_since_last, "max_interval": max_interval})
+        return self.pass_result(
+            details={"chapters_since_last": chapters_since_last, "max_interval": max_interval}
+        )

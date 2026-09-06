@@ -2,14 +2,11 @@
 L2 API Integration Tests — Full business flow verification via TestClient
 Run: pytest tests/test_api_flows.py -v
 """
+
 import pytest
-import tempfile
-import json
 from fastapi.testclient import TestClient
 
 from bridge.api_server import app
-from bridge.nsef import NarrativeStatePackage, CharacterSeed, Tone, ConflictType
-
 
 client = TestClient(app)
 
@@ -20,7 +17,7 @@ def log_ok(msg):
 
 class TestAPIFlows:
     """End-to-end API flow tests matching user stories"""
-    
+
     def test_health_endpoint(self):
         """Health check returns all engines ready"""
         response = client.get("/health")
@@ -30,25 +27,28 @@ class TestAPIFlows:
         assert "engines" in data
         assert len(data["engines"]) >= 5  # tom, kg, gates, reader, cooldown
         log_ok("Health endpoint works")
-    
+
     def test_create_project_from_idea(self):
         """User can create project from one-sentence idea"""
-        response = client.post("/import-from-pwa", json={
-            "premise": "A detective on Mars investigates a murder",
-            "unit_text": "Full story text here...",
-            "characters": [{"name": "Detective Chen", "role": "Protagonist"}],
-            "tone": "悬疑暗流",
-            "conflict": "生存冲突"
-        })
+        response = client.post(
+            "/import-from-pwa",
+            json={
+                "premise": "A detective on Mars investigates a murder",
+                "unit_text": "Full story text here...",
+                "characters": [{"name": "Detective Chen", "role": "Protagonist"}],
+                "tone": "悬疑暗流",
+                "conflict": "生存冲突",
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["status"] == "ok"
         assert "project_id" in data
         assert "title" in data
         assert "mind_grid_url" in data
-        log_ok("Create project works: " + data['project_id'][:12])
+        log_ok("Create project works: " + data["project_id"][:12])
         return data["project_id"]
-    
+
     def test_get_mind_grid(self):
         """Mind grid returns character/belief data for visualization"""
         pid = self.test_create_project_from_idea()
@@ -60,29 +60,30 @@ class TestAPIFlows:
         assert "relationships" in data
         assert "chapter" in data
         log_ok("Mind grid endpoint works")
-    
+
     def test_submit_chapter(self):
         """Submit chapter runs gates and returns audit results"""
         pid = self.test_create_project_from_idea()
-        response = client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "Chapter 1: The body was found in airlock 7. Detective Chen arrived first."
-        })
+        response = client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={
+                "project_id": pid,
+                "text": "Chapter 1: The body was found in airlock 7. Detective Chen arrived first.",
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert "submitted" in data
         assert "overall_score" in data
         assert "gate_results" in data
         assert "audit_results" in data
-        log_ok("Submit chapter works: score=" + str(data['overall_score']))
+        log_ok("Submit chapter works: score=" + str(data["overall_score"]))
         return pid
-    
+
     def test_get_suggestions(self):
         """Get continuation suggestions after chapter submission"""
         pid = self.test_submit_chapter()
-        response = client.post("/project/" + pid + "/suggestions", json={
-            "project_id": pid
-        })
+        response = client.post("/project/" + pid + "/suggestions", json={"project_id": pid})
         assert response.status_code == 200
         data = response.json()
         assert "suggestions" in data
@@ -91,8 +92,8 @@ class TestAPIFlows:
         assert "character_count" in data
         assert "transportation_trend" in data
         assert isinstance(data["suggestions"], list)
-        log_ok("Suggestions work: " + str(len(data['suggestions'])) + " suggestions")
-    
+        log_ok("Suggestions work: " + str(len(data["suggestions"])) + " suggestions")
+
     def test_load_sample_chapter(self):
         """Load sample chapter 1 text"""
         response = client.get("/chapter-1-sample")
@@ -101,34 +102,37 @@ class TestAPIFlows:
         assert len(text) > 100
         assert "陈默" in text or "Chapter" in text
         log_ok("Sample chapter loads")
-    
+
     def test_validate_text(self):
         """Validate text without submitting (pre-generation gates)"""
         pid = self.test_create_project_from_idea()
-        response = client.post("/project/" + pid + "/validate", json={
-            "project_id": pid,
-            "text": "Test text for validation"
-        })
+        response = client.post(
+            "/project/" + pid + "/validate",
+            json={"project_id": pid, "text": "Test text for validation"},
+        )
         assert response.status_code == 200
         data = response.json()
         assert "gate_results" in data
         assert isinstance(data["gate_results"], list)
         log_ok("Text validation works")
-    
+
     def test_update_belief(self):
         """Update character belief via mind grid"""
         pid = self.test_create_project_from_idea()
-        response = client.post("/project/" + pid + "/belief", json={
-            "project_id": pid,
-            "character": "Detective Chen",
-            "proposition": "The murderer is on the station",
-            "value": True
-        })
+        response = client.post(
+            "/project/" + pid + "/belief",
+            json={
+                "project_id": pid,
+                "character": "Detective Chen",
+                "proposition": "The murderer is on the station",
+                "value": True,
+            },
+        )
         assert response.status_code == 200
         data = response.json()
         assert "tensions" in data
         log_ok("Belief update works")
-    
+
     def test_get_constraints(self):
         """Get scene constraints for LLM generation"""
         pid = self.test_create_project_from_idea()
@@ -140,34 +144,37 @@ class TestAPIFlows:
         assert "reader_state" in data
         assert "recommended_patterns" in data
         log_ok("Constraints endpoint works")
-    
+
     def test_full_user_flow(self):
         """Complete user flow: create -> submit -> suggestions -> mind-grid"""
         # Create
-        create_resp = client.post("/import-from-pwa", json={
-            "premise": "Full flow test",
-            "unit_text": "Story...",
-            "characters": [{"name": "Hero", "role": ""}],
-            "tone": "温暖治愈",
-            "conflict": "关系冲突"
-        })
+        create_resp = client.post(
+            "/import-from-pwa",
+            json={
+                "premise": "Full flow test",
+                "unit_text": "Story...",
+                "characters": [{"name": "Hero", "role": ""}],
+                "tone": "温暖治愈",
+                "conflict": "关系冲突",
+            },
+        )
         pid = create_resp.json()["project_id"]
-        
+
         # Submit chapter
-        submit_resp = client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "Chapter 1: The adventure begins."
-        })
-        assert submit_resp.json()["submitted"] == True
-        
+        submit_resp = client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={"project_id": pid, "text": "Chapter 1: The adventure begins."},
+        )
+        assert submit_resp.json()["submitted"]
+
         # Get suggestions
         sug_resp = client.post("/project/" + pid + "/suggestions", json={"project_id": pid})
         assert len(sug_resp.json()["suggestions"]) > 0
-        
+
         # Get mind grid
         mg_resp = client.get("/project/" + pid + "/mind-grid")
         assert len(mg_resp.json()["characters"]) > 0
-        
+
         log_ok("Full user flow works end-to-end")
 
     # ─── #04 LLM Generation ───
@@ -175,18 +182,18 @@ class TestAPIFlows:
     def test_generate_chapter(self):
         """#04: LLM generates 200-500 char chapter from one-line idea"""
         pid = self.test_create_project_from_idea()
-        response = client.post("/project/" + pid + "/generate-chapter", json={
-            "prompt": "写一段关于错过的故事",
-            "word_target": 300
-        })
+        response = client.post(
+            "/project/" + pid + "/generate-chapter",
+            json={"prompt": "写一段关于错过的故事", "word_target": 300},
+        )
         if response.status_code == 503:
             log_ok("Generate endpoint exists (LLM unavailable in test env — 503 graceful)")
             return
         assert response.status_code == 200
         data = response.json()
-        assert data["llm_used"] == True
+        assert data["llm_used"]
         assert len(data["text"]) >= 100
-        log_ok("LLM chapter generation works: " + str(len(data['text'])) + " chars")
+        log_ok("LLM chapter generation works: " + str(len(data["text"])) + " chars")
 
     # ─── #08 Chapter Management ───
 
@@ -195,10 +202,10 @@ class TestAPIFlows:
         pid = self.test_create_project_from_idea()
         # Submit 2 chapters
         for i in (1, 2):
-            client.post("/project/" + pid + "/submit-chapter", json={
-                "project_id": pid,
-                "text": "第" + str(i) + "章：旅途继续。夜色渐深。"
-            })
+            client.post(
+                "/project/" + pid + "/submit-chapter",
+                json={"project_id": pid, "text": "第" + str(i) + "章：旅途继续。夜色渐深。"},
+            )
         # List
         r = client.get("/project/" + pid + "/chapters")
         assert r.status_code == 200
@@ -214,7 +221,7 @@ class TestAPIFlows:
         # Delete
         r3 = client.delete("/project/" + pid + "/chapters/1")
         assert r3.status_code == 200
-        assert r3.json()["deleted"] == True
+        assert r3.json()["deleted"]
         # Verify deletion
         r4 = client.get("/project/" + pid + "/chapters")
         assert len(r4.json()) == 1
@@ -225,10 +232,10 @@ class TestAPIFlows:
     def test_markdown_export(self):
         """#06: Markdown export downloads full novel"""
         pid = self.test_create_project_from_idea()
-        client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "第一章：导出测试。这是正文内容。"
-        })
+        client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={"project_id": pid, "text": "第一章：导出测试。这是正文内容。"},
+        )
         r = client.get("/project/" + pid + "/export/md")
         assert r.status_code == 200
         assert len(r.content) > 50
@@ -244,10 +251,13 @@ class TestAPIFlows:
         assert r0.status_code == 400
         assert "尚无" in r0.json()["detail"]
         # 提交含感官描写的章节
-        client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "夜色像墨一样浓。他推开沉重的木门，门轴发出刺耳的呻吟。空气里弥漫着灰尘的味道。月光落在她半边脸上。她开口说：你终于来了。他没有回答，只是走近坐下。"
-        })
+        client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={
+                "project_id": pid,
+                "text": "夜色像墨一样浓。他推开沉重的木门，门轴发出刺耳的呻吟。空气里弥漫着灰尘的味道。月光落在她半边脸上。她开口说：你终于来了。他没有回答，只是走近坐下。",
+            },
+        )
         r = client.get("/project/" + pid + "/style-report")
         assert r.status_code == 200
         d = r.json()
@@ -266,10 +276,10 @@ class TestAPIFlows:
     def test_gate_results_shape_for_tiering(self):
         """#10: submit response carries level-tagged gate/audit results"""
         pid = self.test_create_project_from_idea()
-        r = client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "第一章：他推开门，看见屋里的灯光。她坐在窗边等他。"
-        })
+        r = client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={"project_id": pid, "text": "第一章：他推开门，看见屋里的灯光。她坐在窗边等他。"},
+        )
         d = r.json()
         all_gates = d.get("gate_results", []) + d.get("audit_results", [])
         for g in all_gates:
@@ -282,52 +292,72 @@ class TestAPIFlows:
         """#12: contradicting numeric facts across chapters get flagged"""
         pid = self.test_create_project_from_idea()
         # Ch1: 年龄 30
-        r1 = client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "第一章：陈默今年三十岁，在洛阳星港修水晶。"
-        })
+        r1 = client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={"project_id": pid, "text": "第一章：陈默今年三十岁，在洛阳星港修水晶。"},
+        )
         assert "cross_chapter" in r1.json()
         # Ch2: 年龄 45 —— 应触发事实矛盾
-        r2 = client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "第二章：多年过去。陈默今年四十五岁，依然在星港。"
-        })
+        r2 = client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={"project_id": pid, "text": "第二章：多年过去。陈默今年四十五岁，依然在星港。"},
+        )
         d2 = r2.json()
         conflicts = d2.get("cross_chapter", [])
         # 注：提取器对中文数字的覆盖有限——若触发则必须结构正确
         for c in conflicts:
-            assert c["type"] in ("fact_contradiction", "identity_shift_unexplained", "belief_contradiction")
+            assert c["type"] in (
+                "fact_contradiction",
+                "identity_shift_unexplained",
+                "belief_contradiction",
+            )
             assert "severity" in c and "detail" in c
-        log_ok("Cross-chapter consistency endpoint wired: " + str(len(conflicts)) + " conflicts detected")
+        log_ok(
+            "Cross-chapter consistency endpoint wired: "
+            + str(len(conflicts))
+            + " conflicts detected"
+        )
 
     # ─── #13 Methodology attribution ───
 
     def test_methodology_attribution(self):
         """#13: rule suggestions carry methodology source attribution"""
         pid = self.test_create_project_from_idea()
-        client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "第一章：他推开门。她转身离开，去了远方。两人就此错过。"
-        })
+        client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={
+                "project_id": pid,
+                "text": "第一章：他推开门。她转身离开，去了远方。两人就此错过。",
+            },
+        )
         r = client.post("/project/" + pid + "/suggestions", json={"project_id": pid})
         d = r.json()
         assert "suggestions" in d
         with_methodology = [s for s in d["suggestions"] if s.get("methodology")]
         # 至少部分规则建议带方法论标注（LLM 建议可选）
-        log_ok("Methodology attribution: " + str(len(with_methodology)) + "/" + str(len(d['suggestions'])) + " suggestions annotated")
+        log_ok(
+            "Methodology attribution: "
+            + str(len(with_methodology))
+            + "/"
+            + str(len(d["suggestions"]))
+            + " suggestions annotated"
+        )
 
     # ─── #15 Hypothetical simulation ───
 
     def test_simulate_hypothesis(self):
         """#15: what-if simulation returns branches without mutating main project"""
         pid = self.test_create_project_from_idea()
-        r = client.post("/project/" + pid + "/simulate", json={
-            "hypothesis": "如果主角发现配角在撒谎",
-            "belief_changes": [
-                {"character": "Detective Chen", "proposition": "配角在撒谎", "value": True}
-            ],
-            "branch_count": 3,
-        })
+        r = client.post(
+            "/project/" + pid + "/simulate",
+            json={
+                "hypothesis": "如果主角发现配角在撒谎",
+                "belief_changes": [
+                    {"character": "Detective Chen", "proposition": "配角在撒谎", "value": True}
+                ],
+                "branch_count": 3,
+            },
+        )
         assert r.status_code == 200
         d = r.json()
         assert "branches" in d and "tensions" in d and "applied_beliefs" in d
@@ -340,16 +370,19 @@ class TestAPIFlows:
         for c in mg["characters"]:
             main_beliefs.update(c.get("world_beliefs") or {})
         assert "配角在撒谎" not in main_beliefs, "simulation leaked into main project!"
-        log_ok("Simulation works: " + str(len(d['branches'])) + " branches, main project untouched")
+        log_ok("Simulation works: " + str(len(d["branches"])) + " branches, main project untouched")
 
     # ─── #16 Fragment divergence ───
 
     def test_diverge_fragments(self):
         """#16: 3 fragments -> 5 worldlines with beats"""
-        r = client.post("/diverge", json={
-            "fragments": ["雨夜便利店的暖黄灯光", "抽屉里没有署名的信", "开走的末班地铁"],
-            "count": 5,
-        })
+        r = client.post(
+            "/diverge",
+            json={
+                "fragments": ["雨夜便利店的暖黄灯光", "抽屉里没有署名的信", "开走的末班地铁"],
+                "count": 5,
+            },
+        )
         assert r.status_code == 200
         d = r.json()
         assert d["fragment_count"] == 3
@@ -360,17 +393,17 @@ class TestAPIFlows:
         # 少于2个碎片 → 400
         r2 = client.post("/diverge", json={"fragments": ["只有一个碎片"], "count": 3})
         assert r2.status_code == 400
-        log_ok("Divergence works: " + str(len(d['worldlines'])) + " worldlines from 3 fragments")
+        log_ok("Divergence works: " + str(len(d["worldlines"])) + " worldlines from 3 fragments")
 
     # ─── #17 EPUB export ───
 
     def test_epub_export(self):
         """#17: EPUB export produces valid epub (PK zip header)"""
         pid = self.test_create_project_from_idea()
-        client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "第一章：夜色降临。他推开门，看见屋里的灯还亮着。"
-        })
+        client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={"project_id": pid, "text": "第一章：夜色降临。他推开门，看见屋里的灯还亮着。"},
+        )
         r = client.get("/project/" + pid + "/export/epub")
         assert r.status_code == 200
         assert r.content[:4] == b"PK\x03\x04", "not a valid epub/zip"
@@ -382,14 +415,18 @@ class TestAPIFlows:
     def test_world_wiki(self):
         """#18: wiki add / list / delete + chapter harvest"""
         pid = self.test_create_project_from_idea()
-        client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "第一章：他推开洛阳老宅的大门。屋里桌上有把青铜钥匙，泛着绿光。"
-        })
+        client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={
+                "project_id": pid,
+                "text": "第一章：他推开洛阳老宅的大门。屋里桌上有把青铜钥匙，泛着绿光。",
+            },
+        )
         # 手动添加
-        r1 = client.post("/project/" + pid + "/wiki", json={
-            "name": "失乐园协议", "element_type": "event", "description": "军方机密"
-        })
+        r1 = client.post(
+            "/project/" + pid + "/wiki",
+            json={"name": "失乐园协议", "element_type": "event", "description": "军方机密"},
+        )
         assert r1.status_code == 200
         eid = r1.json()["id"]
         # 列表
@@ -414,16 +451,24 @@ class TestAPIFlows:
         """#21: publish fingerprint -> browse marketplace -> apply to another project"""
         # 项目A：提交章节 + 生成风格报告（落指纹）
         pid_a = self.test_create_project_from_idea()
-        client.post("/project/" + pid_a + "/submit-chapter", json={
-            "project_id": pid_a,
-            "text": "第一章：夜色像墨一样浓。他推开沉重的木门，门轴发出刺耳的呻吟。月光落在她半边脸上，另一半隐在阴影里。"
-        })
+        client.post(
+            "/project/" + pid_a + "/submit-chapter",
+            json={
+                "project_id": pid_a,
+                "text": "第一章：夜色像墨一样浓。他推开沉重的木门，门轴发出刺耳的呻吟。月光落在她半边脸上，另一半隐在阴影里。",
+            },
+        )
         client.get("/project/" + pid_a + "/style-report")
         # 发布
-        r1 = client.post("/style-profiles", json={
-            "project_id": pid_a, "name": "冷峻夜色风", "description": "高压悬疑",
-            "genre_tags": ["悬疑"],
-        })
+        r1 = client.post(
+            "/style-profiles",
+            json={
+                "project_id": pid_a,
+                "name": "冷峻夜色风",
+                "description": "高压悬疑",
+                "genre_tags": ["悬疑"],
+            },
+        )
         assert r1.status_code == 200, r1.text
         profile_id = r1.json()["id"]
         # 浏览市场
@@ -432,10 +477,13 @@ class TestAPIFlows:
         assert "冷峻夜色风" in names
         # 项目B应用
         pid_b = self.test_create_project_from_idea()
-        client.post("/project/" + pid_b + "/submit-chapter", json={
-            "project_id": pid_b,
-            "text": "第一章：阳光洒满房间。她微笑着走进来，一切都明亮温暖。"
-        })
+        client.post(
+            "/project/" + pid_b + "/submit-chapter",
+            json={
+                "project_id": pid_b,
+                "text": "第一章：阳光洒满房间。她微笑着走进来，一切都明亮温暖。",
+            },
+        )
         client.get("/project/" + pid_b + "/style-report")
         r3 = client.post("/project/" + pid_b + "/apply-style/" + str(profile_id))
         assert r3.status_code == 200
@@ -444,7 +492,11 @@ class TestAPIFlows:
         r4 = client.get("/style-profiles")
         prof = next(p for p in r4.json() if p["id"] == profile_id)
         assert prof["download_count"] >= 1
-        log_ok("Style marketplace: publish -> browse -> apply (downloads: " + str(prof['download_count']) + ")")
+        log_ok(
+            "Style marketplace: publish -> browse -> apply (downloads: "
+            + str(prof["download_count"])
+            + ")"
+        )
 
     # ─── #23 Plugin system ───
 
@@ -461,27 +513,32 @@ class TestAPIFlows:
         assert types["passive-voice-detector"] == "gate"
         assert types["exclamation-density"] == "analyzer"
         # 试运行 gate 插件（高被动密度文本应 WARN）
-        r2 = client.post("/plugins/test-gate", json={
-            "project_id": "x", "text": "他被骗了。他被迫离开。他受到了伤害。他遭受了打击。他被遣返了。"
-        })
+        r2 = client.post(
+            "/plugins/test-gate",
+            json={
+                "project_id": "x",
+                "text": "他被骗了。他被迫离开。他受到了伤害。他遭受了打击。他被遣返了。",
+            },
+        )
         assert r2.status_code == 200
         pg = r2.json()["plugin_gate_results"]
         pv = next(p for p in pg if p["plugin"] == "passive-voice-detector")
         assert pv["level"] == "WARN"
         assert pv["gate_id"].startswith("PLUGIN::")
         # 正常文本应 PASS
-        r3 = client.post("/plugins/test-gate", json={
-            "project_id": "x", "text": "他推开大门。月光洒在她脸上。他握紧了手中的钥匙。"
-        })
+        r3 = client.post(
+            "/plugins/test-gate",
+            json={"project_id": "x", "text": "他推开大门。月光洒在她脸上。他握紧了手中的钥匙。"},
+        )
         pg3 = r3.json()["plugin_gate_results"]
         pv3 = next(p for p in pg3 if p["plugin"] == "passive-voice-detector")
         assert pv3["level"] == "PASS"
         # 提交流程含插件门禁
         pid = self.test_create_project_from_idea()
-        r4 = client.post("/project/" + pid + "/submit-chapter", json={
-            "project_id": pid,
-            "text": "第一章：他推开门，看见灯光。她坐在窗边。"
-        })
+        r4 = client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={"project_id": pid, "text": "第一章：他推开门，看见灯光。她坐在窗边。"},
+        )
         assert "plugin_gates" in r4.json()
         assert isinstance(r4.json()["plugin_gates"], list)
         log_ok("Plugin system: 2 plugins loaded, gate executes in submit flow")

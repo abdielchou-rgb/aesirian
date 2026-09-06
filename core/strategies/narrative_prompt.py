@@ -7,8 +7,8 @@
 3. 字符限制硬编码在提示里（text≤40字, rationale≤20字）
 4. 中文输出，方法论来源标注
 """
-from __future__ import annotations
 
+from __future__ import annotations
 
 SYSTEM_PROMPT = """你是一个专业小说写作助手。基于作者当前的故事状态，提供3-5个具体的续写方向。
 

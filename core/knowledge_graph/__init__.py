@@ -16,17 +16,18 @@
 """
 
 from __future__ import annotations
+
+import json
+import uuid
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
-from collections import defaultdict
-import json
-import uuid
-
 
 # ═══════════════════════════════════════════
 # 节点与边定义
 # ═══════════════════════════════════════════
+
 
 class NodeType(Enum):
     CHARACTER = "角色"
@@ -51,6 +52,7 @@ class EdgeType(Enum):
 @dataclass
 class Node:
     """知识图谱节点"""
+
     id: str
     name: str
     type: NodeType
@@ -59,18 +61,16 @@ class Node:
     updated_at_chapter: int = 0
 
     # 临时节点生命周期（SAGA模式）
-    is_provisional: bool = False        # 是否为临时节点
-    provisional_confidence: float = 0.0 # 置信度 0.0-1.0
-    is_enriched: bool = False           # 是否已被LLM丰富属性
-    graduated_at: Optional[int] = None  # 毕业章节
+    is_provisional: bool = False  # 是否为临时节点
+    provisional_confidence: float = 0.0  # 置信度 0.0-1.0
+    is_enriched: bool = False  # 是否已被LLM丰富属性
+    graduated_at: int | None = None  # 毕业章节
     enriched_traits: list[str] = field(default_factory=list)  # 被推断的特质
 
     @property
     def ready_to_graduate(self) -> bool:
         """是否满足毕业条件：置信度>=0.75且存在>=1章"""
-        return (self.is_provisional
-                and self.provisional_confidence >= 0.75
-                and self.age >= 1)
+        return self.is_provisional and self.provisional_confidence >= 0.75 and self.age >= 1
 
     @property
     def age(self) -> int:
@@ -95,12 +95,13 @@ class Node:
 @dataclass
 class Edge:
     """知识图谱边——带条件的时间戳"""
-    source: str          # 源节点ID
-    target: str          # 目标节点ID
+
+    source: str  # 源节点ID
+    target: str  # 目标节点ID
     type: EdgeType
     properties: dict = field(default_factory=dict)
     valid_from_chapter: int = 0
-    valid_to_chapter: Optional[int] = None  # None = 至今有效
+    valid_to_chapter: int | None = None  # None = 至今有效
     is_active: bool = True
 
     def to_dict(self) -> dict:
@@ -111,7 +112,7 @@ class Edge:
             "properties": self.properties,
             "valid_from": self.valid_from_chapter,
             "valid_to": self.valid_to_chapter,
-            "active": self.is_active
+            "active": self.is_active,
         }
 
 
@@ -127,6 +128,7 @@ class FactSnapshot:
     - 已揭示真相
     - 势力平衡状态
     """
+
     chapter: int
     character_status: dict[str, str] = field(default_factory=dict)
     relationship_map: dict[str, str] = field(default_factory=dict)
@@ -143,13 +145,14 @@ class FactSnapshot:
             "key_items": self.key_items_holders,
             "unresolved_secrets": self.unresolved_secrets,
             "open_threads": self.open_thread_count,
-            "faction_balance": self.faction_balance
+            "faction_balance": self.faction_balance,
         }
 
 
 # ═══════════════════════════════════════════
 # 时序知识图谱主类
 # ═══════════════════════════════════════════
+
 
 class TemporalKnowledgeGraph:
     """
@@ -175,8 +178,14 @@ class TemporalKnowledgeGraph:
     # 节点操作
     # ═══════════════════════════════════════
 
-    def add_node(self, name: str, type: NodeType, properties: dict = None,
-                 provisional: bool = False, confidence: float = 0.0) -> Node:
+    def add_node(
+        self,
+        name: str,
+        type: NodeType,
+        properties: dict = None,
+        provisional: bool = False,
+        confidence: float = 0.0,
+    ) -> Node:
         """添加一个节点
 
         Args:
@@ -204,23 +213,28 @@ class TemporalKnowledgeGraph:
         self._node_by_name[name] = nid
         return node
 
-    def enrich_node(self, node_id: str, traits: list[str] = None,
-                    description: str = "", confidence_boost: float = 0.0) -> Optional[Node]:
+    def enrich_node(
+        self,
+        node_id: str,
+        traits: list[str] = None,
+        description: str = "",
+        confidence_boost: float = 0.0,
+    ) -> Node | None:
         """丰富临时节点的属性（SAGA enrich阶段）"""
         node = self.nodes.get(node_id)
         if not node or not node.is_provisional:
             return node
         if traits:
             node.enriched_traits = list(set(node.enriched_traits + traits))
-            node.properties['traits'] = node.enriched_traits
+            node.properties["traits"] = node.enriched_traits
         if description:
-            node.properties['description'] = description
+            node.properties["description"] = description
         node.is_enriched = True
         node.provisional_confidence = min(1.0, node.provisional_confidence + confidence_boost)
         node.updated_at_chapter = self.current_chapter
         return node
 
-    def graduate_node(self, node_id: str) -> Optional[Node]:
+    def graduate_node(self, node_id: str) -> Node | None:
         """将临时节点毕业为正式节点（SAGA graduate阶段）"""
         node = self.nodes.get(node_id)
         if not node or not node.ready_to_graduate:
@@ -244,13 +258,13 @@ class TemporalKnowledgeGraph:
         connectivity = min(degree / 3, 1.0) * 0.4
 
         # 完整性：描述长度>20 +0.2，有特质+0.1，状态非Unknown+0.1
-        desc = node.properties.get('description', '')
+        desc = node.properties.get("description", "")
         completeness = 0.0
         if len(desc) > 20:
             completeness += (0.2 / 0.4) * 0.3
-        if node.properties.get('traits'):
+        if node.properties.get("traits"):
             completeness += (0.1 / 0.4) * 0.3
-        if node.properties.get('status', '') not in ('', 'unknown'):
+        if node.properties.get("status", "") not in ("", "unknown"):
             completeness += (0.1 / 0.4) * 0.3
 
         # 持续时长
@@ -273,8 +287,12 @@ class TemporalKnowledgeGraph:
         Returns:
             统计数据：{total, enriched, graduated, cleanup}
         """
-        stats = {'total': len(self.get_provisional_nodes()), 'enriched': 0, 'graduated': 0, 'cleanup': 0}
-        cutoff = self.current_chapter - 3  # 超过3章没有关系的临时节点
+        stats = {
+            "total": len(self.get_provisional_nodes()),
+            "enriched": 0,
+            "graduated": 0,
+            "cleanup": 0,
+        }
 
         for node in list(self.get_provisional_nodes()):
             # 计算置信度
@@ -286,29 +304,31 @@ class TemporalKnowledgeGraph:
                 del self.nodes[node.id]
                 if node.name in self._node_by_name and self._node_by_name[node.name] == node.id:
                     del self._node_by_name[node.name]
-                stats['cleanup'] += 1
+                stats["cleanup"] += 1
                 continue
 
             # 丰富（如果有回调）
             if enrich_fn and not node.is_enriched:
                 try:
                     traits, desc, boost = enrich_fn(node)
-                    self.enrich_node(node.id, traits=traits, description=desc, confidence_boost=boost)
-                    stats['enriched'] += 1
+                    self.enrich_node(
+                        node.id, traits=traits, description=desc, confidence_boost=boost
+                    )
+                    stats["enriched"] += 1
                 except Exception:
                     pass
 
             # 毕业（满足条件）
             if node.ready_to_graduate:
                 self.graduate_node(node.id)
-                stats['graduated'] += 1
+                stats["graduated"] += 1
 
         return stats
 
-    def get_node(self, node_id: str) -> Optional[Node]:
+    def get_node(self, node_id: str) -> Node | None:
         return self.nodes.get(node_id)
 
-    def get_node_by_name(self, name: str) -> Optional[Node]:
+    def get_node_by_name(self, name: str) -> Node | None:
         nid = self._node_by_name.get(name)
         return self.nodes.get(nid) if nid else None
 
@@ -323,8 +343,9 @@ class TemporalKnowledgeGraph:
     # 边操作
     # ═══════════════════════════════════════
 
-    def add_edge(self, source_name: str, target_name: str,
-                 edge_type: EdgeType, properties: dict = None) -> Optional[Edge]:
+    def add_edge(
+        self, source_name: str, target_name: str, edge_type: EdgeType, properties: dict = None
+    ) -> Edge | None:
         """在两个节点之间添加关系边
 
         如果节点不存在，自动创建。
@@ -348,14 +369,14 @@ class TemporalKnowledgeGraph:
             target=tgt.id,
             type=edge_type,
             properties=properties or {},
-            valid_from_chapter=self.current_chapter
+            valid_from_chapter=self.current_chapter,
         )
         self.edges.append(edge)
         self._edges_from[src.id].append(edge)
         self._edges_to[tgt.id].append(edge)
         return edge
 
-    def get_relations(self, node_name: str, edge_type: Optional[EdgeType] = None) -> list[Edge]:
+    def get_relations(self, node_name: str, edge_type: EdgeType | None = None) -> list[Edge]:
         """获取一个节点的所有关系"""
         node = self.get_node_by_name(node_name)
         if not node:
@@ -374,8 +395,12 @@ class TemporalKnowledgeGraph:
             return
 
         for edge in self.edges:
-            if (edge.source == src.id and edge.target == tgt.id
-                    and edge.type == edge_type and edge.is_active):
+            if (
+                edge.source == src.id
+                and edge.target == tgt.id
+                and edge.type == edge_type
+                and edge.is_active
+            ):
                 edge.is_active = False
                 edge.valid_to_chapter = self.current_chapter
 
@@ -390,17 +415,19 @@ class TemporalKnowledgeGraph:
             "active_events": [],
         }
         for edge in self.edges:
-            if edge.valid_from_chapter <= chapter:
-                if edge.valid_to_chapter is None or edge.valid_to_chapter >= chapter:
-                    src = self.nodes.get(edge.source)
-                    tgt = self.nodes.get(edge.target)
-                    if src and tgt:
+            if (
+                edge.valid_from_chapter <= chapter
+                and (edge.valid_to_chapter is None or edge.valid_to_chapter >= chapter)
+            ):
+                src = self.nodes.get(edge.source)
+                tgt = self.nodes.get(edge.target)
+                if src and tgt:
                         result["character_relationships"].append(
                             f"{src.name} --[{edge.type.value}]--> {tgt.name}"
                         )
         return result
 
-    def when_did(self, fact: str) -> Optional[int]:
+    def when_did(self, fact: str) -> int | None:
         """查询某个事实在哪个章节成立的——"主角什么时候知道自己是被收养的？" """
         for edge in self.edges:
             if edge.properties.get("fact") == fact or fact in str(edge.properties):
@@ -424,16 +451,17 @@ class TemporalKnowledgeGraph:
 
         # 检查节点属性冲突
         import re
+
         for prop, val in node.properties.items():
             # 如果属性名出现在事实陈述中，或属性值可以被比较
             prop_in_fact = prop.lower() in fact_statement.lower()
 
-            for truth_val in ([val] if not isinstance(val, list) else val):
+            for truth_val in [val] if not isinstance(val, list) else val:
                 str_truth = str(truth_val)
 
                 # 数字属性特殊处理
                 if isinstance(truth_val, (int, float)):
-                    numbers = re.findall(r'\d+', fact_statement)
+                    numbers = re.findall(r"\d+", fact_statement)
                     if numbers and str_truth not in numbers:
                         conflicts.append(
                             f"与{node.name}的属性「{prop}={truth_val}」矛盾（事实中提到{numbers[0]}）"
@@ -441,13 +469,11 @@ class TemporalKnowledgeGraph:
                 elif prop_in_fact and str_truth not in fact_statement:
                     negations = ["不", "没", "没有", "否认"]
                     if not any(n in fact_statement for n in negations):
-                        conflicts.append(
-                            f"与{node.name}的属性「{prop}={truth_val}」矛盾"
-                        )
+                        conflicts.append(f"与{node.name}的属性「{prop}={truth_val}」矛盾")
 
         return conflicts
 
-    def check_temporal_consistency(self, event_name: str, expected_chapter: int) -> Optional[str]:
+    def check_temporal_consistency(self, event_name: str, expected_chapter: int) -> str | None:
         """检查一个事件在给定章节是否合理
 
         例如：角色在第三章不认识某人，但不应该在第一章就提到其名字
@@ -465,12 +491,11 @@ class TemporalKnowledgeGraph:
         # 检查参与该事件的角色在事件发生时是否存在
         for edge in self._edges_to.get(event_node.id, []):
             src = self.nodes.get(edge.source)
-            if src and edge.type == EdgeType.PARTICIPATES:
-                if src.created_at_chapter > expected_chapter:
-                    return (
-                        f"角色「{src.name}」第{src.created_at_chapter}章才出现，"
-                        f"但参与的事件「{event_name}」在第{expected_chapter}章"
-                    )
+            if src and edge.type == EdgeType.PARTICIPATES and src.created_at_chapter > expected_chapter:
+                return (
+                    f"角色「{src.name}」第{src.created_at_chapter}章才出现，"
+                    f"但参与的事件「{event_name}」在第{expected_chapter}章"
+                )
         return None
 
     # ═══════════════════════════════════════
@@ -506,14 +531,18 @@ class TemporalKnowledgeGraph:
 
         # 统计
         secrets_count = sum(
-            1 for n in self.nodes.values()
+            1
+            for n in self.nodes.values()
             if n.type == NodeType.CHARACTER and n.properties.get("has_secret")
         )
         snapshot.unresolved_secrets = secrets_count
-        snapshot.open_thread_count = len([
-            n for n in self.nodes.values()
-            if n.type == NodeType.EVENT and n.properties.get("is_open_thread", False)
-        ])
+        snapshot.open_thread_count = len(
+            [
+                n
+                for n in self.nodes.values()
+                if n.type == NodeType.EVENT and n.properties.get("is_open_thread", False)
+            ]
+        )
 
         self.snapshots.append(snapshot)
         self.current_chapter += 1
@@ -538,7 +567,8 @@ class TemporalKnowledgeGraph:
 
         while True:
             next_edges = [
-                e for e in self._edges_from.get(current.id, [])
+                e
+                for e in self._edges_from.get(current.id, [])
                 if e.type == EdgeType.LEADS_TO and e.target not in visited
             ]
             if not next_edges:
@@ -564,31 +594,33 @@ class TemporalKnowledgeGraph:
             "nodes": {nid: n.to_dict() for nid, n in self.nodes.items()},
             "edges": [e.to_dict() for e in self.edges],
             "current_chapter": self.current_chapter,
-            "snapshot_count": len(self.snapshots)
+            "snapshot_count": len(self.snapshots),
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "TemporalKnowledgeGraph":
+    def from_dict(cls, data: dict) -> TemporalKnowledgeGraph:
         kg = cls()
         kg.current_chapter = data.get("current_chapter", 0)
         for nid, ndata in data.get("nodes", {}).items():
             node = Node(
-                id=nid, name=ndata["name"],
+                id=nid,
+                name=ndata["name"],
                 type=NodeType(ndata["type"]),
                 properties=ndata.get("properties", {}),
                 created_at_chapter=ndata.get("created_at", 0),
-                updated_at_chapter=ndata.get("updated_at", 0)
+                updated_at_chapter=ndata.get("updated_at", 0),
             )
             kg.nodes[nid] = node
             kg._node_by_name[node.name] = nid
         for edata in data.get("edges", []):
             edge = Edge(
-                source=edata["source"], target=edata["target"],
+                source=edata["source"],
+                target=edata["target"],
                 type=EdgeType(edata["type"]),
                 properties=edata.get("properties", {}),
                 valid_from_chapter=edata.get("valid_from", 0),
                 valid_to_chapter=edata.get("valid_to"),
-                is_active=edata.get("active", True)
+                is_active=edata.get("active", True),
             )
             kg.edges.append(edge)
             kg._edges_from[edge.source].append(edge)

@@ -15,19 +15,20 @@
 """
 
 from __future__ import annotations
-import re
+
+import contextlib
 import json
 import math
-from pathlib import Path
+import re
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Optional
-from statistics import mean, stdev, median, quantiles
+from pathlib import Path
+from statistics import mean, median, quantiles, stdev
+from typing import Any
 
 from .analyzer import analyzer
-from .nlp_engine import NLPEngine, get_engine
-from .dl_engine import get_dl_engine, DLEngine
-
+from .dl_engine import get_dl_engine
+from .nlp_engine import get_engine
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Dataclasses
@@ -37,6 +38,7 @@ from .dl_engine import get_dl_engine, DLEngine
 @dataclass
 class LexicalFingerprint:
     """L1: 词级指纹。"""
+
     # 虚词频率谱 — 李贤平47虚字 + 现代扩展
     function_word_spectrum: dict[str, float] = field(default_factory=dict)
     top_function_words: list[tuple[str, float]] = field(default_factory=list)
@@ -44,14 +46,14 @@ class LexicalFingerprint:
     # POS bigram — 汉语语体计量（v3.1: jieba.posseg 替代正则）
     pos_bigram_top: list[tuple[str, float]] = field(default_factory=list)
     pos_ratio: dict[str, float] = field(default_factory=dict)  # 名词/动词/形容词/代词/副词/助词比
-    pos_bigram_entropy: float = 0.0         # v3.1: POS bigram 转移熵
-    noun_verb_ratio: float = 0.0            # v3.1: 名词/动词比
-    function_word_ratio: float = 0.0        # v3.1: 虚词占比(AUX+ADP+CONJ+PRON)
+    pos_bigram_entropy: float = 0.0  # v3.1: POS bigram 转移熵
+    noun_verb_ratio: float = 0.0  # v3.1: 名词/动词比
+    function_word_ratio: float = 0.0  # v3.1: 虚词占比(AUX+ADP+CONJ+PRON)
 
     # 词汇多样性 — pystylometry
-    ttr: float = 0.0          # Type-Token Ratio
-    mtld: float = 0.0         # Measure of Textual Lexical Diversity
-    yule_k: float = 0.0       # Yule's K
+    ttr: float = 0.0  # Type-Token Ratio
+    mtld: float = 0.0  # Measure of Textual Lexical Diversity
+    yule_k: float = 0.0  # Yule's K
     hapax_ratio: float = 0.0  # 单现词比例
     unique_char_ratio: float = 0.0
 
@@ -62,6 +64,7 @@ class LexicalFingerprint:
 @dataclass
 class SyntacticFingerprint:
     """L2: 句级指纹。"""
+
     # 句长分布 — 金庸古龙
     mean_sentence_len: float = 0.0
     std_sentence_len: float = 0.0
@@ -73,10 +76,10 @@ class SyntacticFingerprint:
     total_punctuation_ratio: float = 0.0  # 标点占字数的比例
 
     # 句式类型比 — 韩寒郭敬明
-    declarative_ratio: float = 0.0   # 陈述句
-    interrogative_ratio: float = 0.0 # 疑问句
-    exclamatory_ratio: float = 0.0   # 感叹句
-    ellipsis_density: float = 0.0    # 省略号密度
+    declarative_ratio: float = 0.0  # 陈述句
+    interrogative_ratio: float = 0.0  # 疑问句
+    exclamatory_ratio: float = 0.0  # 感叹句
+    ellipsis_density: float = 0.0  # 省略号密度
 
     # 从句嵌套
     avg_clause_depth: float = 0.0
@@ -86,6 +89,7 @@ class SyntacticFingerprint:
 @dataclass
 class DiscourseFingerprint:
     """L3: 篇章指纹。"""
+
     # 段落呼吸节奏 — ProseEngine
     mean_paragraph_len: float = 0.0
     std_paragraph_len: float = 0.0
@@ -93,16 +97,16 @@ class DiscourseFingerprint:
     paragraph_len_distribution: list[int] = field(default_factory=list)  # 每段字数列表
 
     # 对话/叙述比 — ProseEngine
-    dialogue_ratio: float = 0.0       # 对话占总字数比
-    narration_ratio: float = 0.0      # 叙述占总字数比
+    dialogue_ratio: float = 0.0  # 对话占总字数比
+    narration_ratio: float = 0.0  # 叙述占总字数比
     inner_monologue_ratio: float = 0.0
 
     # 感官描写密度 — ProWritingAid
-    visual_density: float = 0.0       # 视觉词密度
-    auditory_density: float = 0.0     # 听觉词密度
-    tactile_density: float = 0.0      # 触觉词密度
-    olfactory_density: float = 0.0    # 嗅觉词密度
-    gustatory_density: float = 0.0    # 味觉词密度
+    visual_density: float = 0.0  # 视觉词密度
+    auditory_density: float = 0.0  # 听觉词密度
+    tactile_density: float = 0.0  # 触觉词密度
+    olfactory_density: float = 0.0  # 嗅觉词密度
+    gustatory_density: float = 0.0  # 味觉词密度
     total_sensory_density: float = 0.0
 
     # 过渡词偏好 — ProWritingAid
@@ -113,12 +117,13 @@ class DiscourseFingerprint:
 @dataclass
 class NarrativeFingerprint:
     """L4: 叙事指纹。"""
+
     # 情节因果链
     causality_marker_density: float = 0.0  # 因为/所以/因此/于是/结果 密度
-    foreshadowing_density: float = 0.0     # 伏笔密度
+    foreshadowing_density: float = 0.0  # 伏笔密度
 
     # 视角切换
-    pov_switch_frequency: float = 0.0      # 每千字视角切换次数
+    pov_switch_frequency: float = 0.0  # 每千字视角切换次数
 
     # 意象复用间隔
     top_images: list[tuple[str, int]] = field(default_factory=list)
@@ -128,22 +133,23 @@ class NarrativeFingerprint:
     chapter_tension_curve: list[float] = field(default_factory=list)
 
     # v3.3: 叙事增强字段
-    act_coherence: float = 0.0             # 幕间连贯性
-    causal_density: float = 0.0            # 因果密度（每千字因果节点数）
-    climax_position: float = 0.0           # 高潮位置百分比
-    character_arc_count: int = 0           # 弧光变化角色数（非flat）
+    act_coherence: float = 0.0  # 幕间连贯性
+    causal_density: float = 0.0  # 因果密度（每千字因果节点数）
+    climax_position: float = 0.0  # 高潮位置百分比
+    character_arc_count: int = 0  # 弧光变化角色数（非flat）
 
     # v3.4: 网文专项字段
-    shuang_dian_density: float = 0.0       # 爽点密度（每千字爽点数）
-    power_progression_speed: float = 0.0   # 升级速度（每章平均升级次数）
-    avg_hook_score: float = 0.0            # 平均钩子强度
-    twist_density: float = 0.0             # 反转密度（每万字反转次数）
-    foreshadow_recovery: float = 0.0       # 伏笔回收率
+    shuang_dian_density: float = 0.0  # 爽点密度（每千字爽点数）
+    power_progression_speed: float = 0.0  # 升级速度（每章平均升级次数）
+    avg_hook_score: float = 0.0  # 平均钩子强度
+    twist_density: float = 0.0  # 反转密度（每万字反转次数）
+    foreshadow_recovery: float = 0.0  # 伏笔回收率
 
 
 @dataclass
 class StyleFingerprint:
     """四层风格指纹完整结果。"""
+
     novel_name: str = ""
     author: str = ""
     genre: str = "xianxia_modern"
@@ -164,13 +170,15 @@ class StyleFingerprint:
     nlp_quality: dict = field(default_factory=dict)
 
     # v4.0: DL 风格嵌入向量（仅 DL 可用时填充）
-    dl_embedding: Optional[list[float]] = field(default=None)
+    dl_embedding: list[float] | None = field(default=None)
 
     def to_dict(self) -> dict:
         return {
             "meta": {
-                "novel": self.novel_name, "author": self.author,
-                "genre": self.genre, "total_chars": self.total_chars,
+                "novel": self.novel_name,
+                "author": self.author,
+                "genre": self.genre,
+                "total_chars": self.total_chars,
                 "chapter_count": self.chapter_count,
             },
             "L1_lexical": {
@@ -182,8 +190,10 @@ class StyleFingerprint:
                 "function_word_ratio": self.lexical.function_word_ratio,
                 "pos_ratio": self.lexical.pos_ratio,
                 "diversity": {
-                    "ttr": self.lexical.ttr, "mtld": self.lexical.mtld,
-                    "yule_k": self.lexical.yule_k, "hapax_ratio": self.lexical.hapax_ratio,
+                    "ttr": self.lexical.ttr,
+                    "mtld": self.lexical.mtld,
+                    "yule_k": self.lexical.yule_k,
+                    "hapax_ratio": self.lexical.hapax_ratio,
                     "unique_char_ratio": self.lexical.unique_char_ratio,
                 },
                 "top_chars": self.lexical.top_chars,
@@ -256,7 +266,9 @@ class StyleFingerprint:
                 "available": self.dl_embedding is not None,
                 "dim": len(self.dl_embedding) if self.dl_embedding else 0,
                 "preview": self.dl_embedding[:3] if self.dl_embedding else None,
-            } if self.dl_embedding else None,
+            }
+            if self.dl_embedding
+            else None,
         }
 
     def to_json(self, indent: int = 2) -> str:
@@ -266,7 +278,7 @@ class StyleFingerprint:
         Path(path).write_text(self.to_json(), encoding="utf-8")
 
     @staticmethod
-    def load(path: str) -> "StyleFingerprint":
+    def load(path: str) -> StyleFingerprint:
         d = json.loads(Path(path).read_text(encoding="utf-8"))
         return _dict_to_fingerprint(d)
 
@@ -279,14 +291,15 @@ class StyleFingerprint:
 @dataclass
 class StyleDriftResult:
     """风格漂移检测结果。"""
+
     passed: bool = True
     overall_authenticity: float = 0.0  # DRESS: SI × SP × FS
-    style_fidelity: float = 0.0        # SI: Style Intensity
+    style_fidelity: float = 0.0  # SI: Style Intensity
     content_independence: float = 0.0  # SP: Semantic Preservation (1.0 = 无内容干扰)
-    fluency: float = 0.0               # FS: Fluency Score (1.0 = 流畅)
+    fluency: float = 0.0  # FS: Fluency Score (1.0 = 流畅)
 
     drift_dimensions: list[dict] = field(default_factory=list)
-    chapter_fingerprint: Optional[StyleFingerprint] = None
+    chapter_fingerprint: StyleFingerprint | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -306,99 +319,379 @@ class StyleDriftResult:
 # 李贤平47虚字 + 现代扩展 → 共80个虚词
 FUNCTION_WORDS = [
     # 文言虚字(13) — 李贤平
-    "之", "其", "或", "亦", "方", "于", "即", "皆", "因", "仍", "故", "尚", "乃",
+    "之",
+    "其",
+    "或",
+    "亦",
+    "方",
+    "于",
+    "即",
+    "皆",
+    "因",
+    "仍",
+    "故",
+    "尚",
+    "乃",
     # 句尾虚字(9) — 李贤平
-    "呀", "吗", "咧", "罢咧", "啊", "罢", "罢了", "么", "呢",
+    "呀",
+    "吗",
+    "咧",
+    "罢咧",
+    "啊",
+    "罢",
+    "罢了",
+    "么",
+    "呢",
     # 现代高频虚词 — 扩展
-    "的", "了", "在", "是", "有", "和", "与", "而", "但", "却", "就", "也",
-    "还", "又", "再", "才", "都", "只", "很", "更", "最", "非常", "已经",
-    "正在", "一直", "总是", "终于", "仍然", "忽然", "突然", "其实", "确实",
-    "所以", "因为", "如果", "虽然", "但是", "然而", "于是", "然后", "接着",
-    "不过", "而且", "并且", "或者", "还是", "只是", "甚至", "尤其", "居然",
-    "竟然", "果然", "当然", "自然", "似乎", "仿佛", "好像",
+    "的",
+    "了",
+    "在",
+    "是",
+    "有",
+    "和",
+    "与",
+    "而",
+    "但",
+    "却",
+    "就",
+    "也",
+    "还",
+    "又",
+    "再",
+    "才",
+    "都",
+    "只",
+    "很",
+    "更",
+    "最",
+    "非常",
+    "已经",
+    "正在",
+    "一直",
+    "总是",
+    "终于",
+    "仍然",
+    "忽然",
+    "突然",
+    "其实",
+    "确实",
+    "所以",
+    "因为",
+    "如果",
+    "虽然",
+    "但是",
+    "然而",
+    "于是",
+    "然后",
+    "接着",
+    "不过",
+    "而且",
+    "并且",
+    "或者",
+    "还是",
+    "只是",
+    "甚至",
+    "尤其",
+    "居然",
+    "竟然",
+    "果然",
+    "当然",
+    "自然",
+    "似乎",
+    "仿佛",
+    "好像",
 ]
 
 # 32种标点符号 — 中文Web作者识别
 PUNCTUATION_MAP = {
     # 中文标点
-    "。": "period_cn", "！": "exclamation_cn", "？": "question_cn",
-    "，": "comma_cn", "；": "semicolon_cn", "：": "colon_cn",
-    "、": "enumeration_cn", "……": "ellipsis_cn", "——": "dash_cn",
-    "「": "quote_cn_l", "」": "quote_cn_r",
-    "“": "quote_double_l", "”": "quote_double_r",
-    "‘": "quote_single_l", "’": "quote_single_r",
-    "（": "paren_l", "）": "paren_r",
-    "《": "book_l", "》": "book_r",
-    "【": "bracket_l", "】": "bracket_r",
+    "。": "period_cn",
+    "！": "exclamation_cn",
+    "？": "question_cn",
+    "，": "comma_cn",
+    "；": "semicolon_cn",
+    "：": "colon_cn",
+    "、": "enumeration_cn",
+    "……": "ellipsis_cn",
+    "——": "dash_cn",
+    "「": "quote_cn_l",
+    "」": "quote_cn_r",
+    "“": "quote_double_l",
+    "”": "quote_double_r",
+    "‘": "quote_single_l",
+    "’": "quote_single_r",
+    "（": "paren_l",
+    "）": "paren_r",
+    "《": "book_l",
+    "》": "book_r",
+    "【": "bracket_l",
+    "】": "bracket_r",
     # 英文标点（中文小说中混用）
-    ".": "period_en", "!": "exclamation_en", "?": "question_en",
-    ",": "comma_en", ";": "semicolon_en", ":": "colon_en",
-    "...": "ellipsis_en", "—": "dash_em", "–": "dash_en",
-    '"': "quote_double", "'": "quote_single",
-    "~": "tilde", "·": "dot_middle",
+    ".": "period_en",
+    "!": "exclamation_en",
+    "?": "question_en",
+    ",": "comma_en",
+    ";": "semicolon_en",
+    ":": "colon_en",
+    "...": "ellipsis_en",
+    "—": "dash_em",
+    "–": "dash_en",
+    '"': "quote_double",
+    "'": "quote_single",
+    "~": "tilde",
+    "·": "dot_middle",
 }
 
 # 五感词库 — ProWritingAid
 SENSORY_WORDS = {
-    "visual": ["看", "见", "望", "观", "视", "注视", "凝视", "瞥", "盯", "瞪",
-                "瞧", "眺", "俯瞰", "仰望", "光明", "黑暗", "亮", "暗", "闪烁",
-                "颜色", "红", "蓝", "绿", "白", "黑", "金黄", "苍白", "昏暗", "明亮"],
-    "auditory": ["听", "闻", "声", "音", "响", "叫", "喊", "吼", "啸", "鸣",
-                 "低语", "耳语", "喧闹", "寂静", "轰鸣", "清脆", "低沉", "尖锐", "沙哑"],
-    "tactile": ["触", "摸", "碰", "抚", "拍", "按", "捏", "握", "抓", "抱",
-                "冷", "热", "凉", "暖", "烫", "冰", "粗糙", "光滑", "柔软", "坚硬",
-                "湿", "干", "粘", "滑", "刺痛", "麻木", "沉", "轻"],
-    "olfactory": ["嗅", "闻", "香", "臭", "腥", "芬芳", "清香", "刺鼻", "浓郁",
-                  "淡雅", "霉", "腐", "焦", "烟味", "花香", "草香"],
-    "gustatory": ["尝", "吃", "喝", "品", "舔", "吞咽",
-                  "甜", "苦", "酸", "辣", "咸", "涩", "鲜", "甘", "醇", "清淡"],
+    "visual": [
+        "看",
+        "见",
+        "望",
+        "观",
+        "视",
+        "注视",
+        "凝视",
+        "瞥",
+        "盯",
+        "瞪",
+        "瞧",
+        "眺",
+        "俯瞰",
+        "仰望",
+        "光明",
+        "黑暗",
+        "亮",
+        "暗",
+        "闪烁",
+        "颜色",
+        "红",
+        "蓝",
+        "绿",
+        "白",
+        "黑",
+        "金黄",
+        "苍白",
+        "昏暗",
+        "明亮",
+    ],
+    "auditory": [
+        "听",
+        "闻",
+        "声",
+        "音",
+        "响",
+        "叫",
+        "喊",
+        "吼",
+        "啸",
+        "鸣",
+        "低语",
+        "耳语",
+        "喧闹",
+        "寂静",
+        "轰鸣",
+        "清脆",
+        "低沉",
+        "尖锐",
+        "沙哑",
+    ],
+    "tactile": [
+        "触",
+        "摸",
+        "碰",
+        "抚",
+        "拍",
+        "按",
+        "捏",
+        "握",
+        "抓",
+        "抱",
+        "冷",
+        "热",
+        "凉",
+        "暖",
+        "烫",
+        "冰",
+        "粗糙",
+        "光滑",
+        "柔软",
+        "坚硬",
+        "湿",
+        "干",
+        "粘",
+        "滑",
+        "刺痛",
+        "麻木",
+        "沉",
+        "轻",
+    ],
+    "olfactory": [
+        "嗅",
+        "闻",
+        "香",
+        "臭",
+        "腥",
+        "芬芳",
+        "清香",
+        "刺鼻",
+        "浓郁",
+        "淡雅",
+        "霉",
+        "腐",
+        "焦",
+        "烟味",
+        "花香",
+        "草香",
+    ],
+    "gustatory": [
+        "尝",
+        "吃",
+        "喝",
+        "品",
+        "舔",
+        "吞咽",
+        "甜",
+        "苦",
+        "酸",
+        "辣",
+        "咸",
+        "涩",
+        "鲜",
+        "甘",
+        "醇",
+        "清淡",
+    ],
 }
 
 # 过渡词 — ProWritingAid
 TRANSITION_WORDS = [
-    "然而", "但是", "不过", "虽然", "尽管", "可是", "却",
-    "因此", "所以", "于是", "因而", "故此",
-    "接着", "然后", "随后", "之后", "此后", "接下来",
-    "同时", "与此同时", "另一方面",
-    "此外", "另外", "而且", "并且", "况且",
-    "总之", "总而言之", "综上所述",
-    "首先", "其次", "最后", "第一", "第二", "第三",
-    "例如", "比如", "譬如", "像是",
-    "换句话说", "换言之", "也就是说",
-    "实际上", "事实上", "其实",
-    "当然", "自然", "显然", "明显",
-    "突然", "忽然", "猛然", "骤然",
-    "渐渐", "逐渐", "慢慢", "缓缓",
+    "然而",
+    "但是",
+    "不过",
+    "虽然",
+    "尽管",
+    "可是",
+    "却",
+    "因此",
+    "所以",
+    "于是",
+    "因而",
+    "故此",
+    "接着",
+    "然后",
+    "随后",
+    "之后",
+    "此后",
+    "接下来",
+    "同时",
+    "与此同时",
+    "另一方面",
+    "此外",
+    "另外",
+    "而且",
+    "并且",
+    "况且",
+    "总之",
+    "总而言之",
+    "综上所述",
+    "首先",
+    "其次",
+    "最后",
+    "第一",
+    "第二",
+    "第三",
+    "例如",
+    "比如",
+    "譬如",
+    "像是",
+    "换句话说",
+    "换言之",
+    "也就是说",
+    "实际上",
+    "事实上",
+    "其实",
+    "当然",
+    "自然",
+    "显然",
+    "明显",
+    "突然",
+    "忽然",
+    "猛然",
+    "骤然",
+    "渐渐",
+    "逐渐",
+    "慢慢",
+    "缓缓",
 ]
 
 # 因果标记 — StoryTangl
 CAUSALITY_MARKERS = [
-    "因为", "所以", "因此", "于是", "由于", "结果", "导致",
-    "造成", "引起", "从而", "故而", "既然", "既然……就",
-    "之所以", "是因为", "以致", "以至",
+    "因为",
+    "所以",
+    "因此",
+    "于是",
+    "由于",
+    "结果",
+    "导致",
+    "造成",
+    "引起",
+    "从而",
+    "故而",
+    "既然",
+    "既然……就",
+    "之所以",
+    "是因为",
+    "以致",
+    "以至",
 ]
 
 # 视角标记
 POV_MARKERS = [
-    "他想", "她感到", "他认为", "她觉得", "他心想", "她心想",
-    "他意识到", "她意识到", "他明白", "她明白",
-    "内心", "心里", "心头", "心底", "暗自", "默默",
+    "他想",
+    "她感到",
+    "他认为",
+    "她觉得",
+    "他心想",
+    "她心想",
+    "他意识到",
+    "她意识到",
+    "他明白",
+    "她明白",
+    "内心",
+    "心里",
+    "心头",
+    "心底",
+    "暗自",
+    "默默",
 ]
 
 # POS 近似映射（启发式，零外部依赖）
 POS_PATTERNS = {
-    "noun": re.compile(r'(?:修士|仙人|妖兽|灵气|丹药|法术|功法|道|剑|阵|山|水|天|地'
-                            r'|人|手|眼|心|头|身|脸|声|光|影|血|火|风|云|雷|电)'),
-    "verb": re.compile(r'(?:修炼|突破|攻击|防御|飞行|施展|释放|运转|凝聚|吸收|打坐'
-                           r'|走|跑|说|道|看|想|来|去|做|给|让|使|拿|放)'),
-    "adj": re.compile(r'(?:强大|恐怖|惊人|可怕|神秘|古老|巨大|渺小|危险|美丽|丑陋'
-                           r'|冷|热|快|慢|好|坏|多|少|大|小|强|弱)'),
-    "pronoun": re.compile(r'(?:他|她|它|我|你|您|我们|你们|他们|她们|自己|自身|彼此|其)'),
-    "adverb": re.compile(r'(?:忽然|突然|渐渐|逐渐|已经|正在|一直|总是|终于|仍然|非常|很|更|最|也|还|就|才|都|只)'),
-    "auxiliary": re.compile(r'(?:的|了|着|过|得|地|之|所|被|把|将|以|而|与|和|或)'),
-    "conjunction": re.compile(r'(?:但是|然而|虽然|如果|因为|所以|于是|而且|或者|还是|只是|甚至|并且)'),
-    "numeral": re.compile(r'(?:一|二|三|四|五|六|七|八|九|十|百|千|万|亿|[一二三四五六七八九十百千万亿])'),
-    "modal": re.compile(r'(?:能|可以|会|要|想|敢|愿意|必须|应该|能够|可能|一定)'),
+    "noun": re.compile(
+        r"(?:修士|仙人|妖兽|灵气|丹药|法术|功法|道|剑|阵|山|水|天|地"
+        r"|人|手|眼|心|头|身|脸|声|光|影|血|火|风|云|雷|电)"
+    ),
+    "verb": re.compile(
+        r"(?:修炼|突破|攻击|防御|飞行|施展|释放|运转|凝聚|吸收|打坐"
+        r"|走|跑|说|道|看|想|来|去|做|给|让|使|拿|放)"
+    ),
+    "adj": re.compile(
+        r"(?:强大|恐怖|惊人|可怕|神秘|古老|巨大|渺小|危险|美丽|丑陋"
+        r"|冷|热|快|慢|好|坏|多|少|大|小|强|弱)"
+    ),
+    "pronoun": re.compile(r"(?:他|她|它|我|你|您|我们|你们|他们|她们|自己|自身|彼此|其)"),
+    "adverb": re.compile(
+        r"(?:忽然|突然|渐渐|逐渐|已经|正在|一直|总是|终于|仍然|非常|很|更|最|也|还|就|才|都|只)"
+    ),
+    "auxiliary": re.compile(r"(?:的|了|着|过|得|地|之|所|被|把|将|以|而|与|和|或)"),
+    "conjunction": re.compile(
+        r"(?:但是|然而|虽然|如果|因为|所以|于是|而且|或者|还是|只是|甚至|并且)"
+    ),
+    "numeral": re.compile(
+        r"(?:一|二|三|四|五|六|七|八|九|十|百|千|万|亿|[一二三四五六七八九十百千万亿])"
+    ),
+    "modal": re.compile(r"(?:能|可以|会|要|想|敢|愿意|必须|应该|能够|可能|一定)"),
 }
 
 
@@ -465,10 +758,8 @@ def extract_style_fingerprint(
     if dl:
         engine = get_dl_engine()
         if engine.is_available():
-            try:
+            with contextlib.suppress(Exception):
                 result.dl_embedding = engine.encode_style(text)
-            except Exception:
-                pass
 
     return result
 
@@ -491,12 +782,8 @@ def _extract_lexical(text: str) -> LexicalFingerprint:
         if count > 0:
             fw_counts[fw] = round(count / max(total_chars, 1) * 1000, 4)
 
-    lf.function_word_spectrum = dict(
-        sorted(fw_counts.items(), key=lambda x: x[1], reverse=True)
-    )
-    lf.top_function_words = list(
-        sorted(fw_counts.items(), key=lambda x: x[1], reverse=True)
-    )[:20]
+    lf.function_word_spectrum = dict(sorted(fw_counts.items(), key=lambda x: x[1], reverse=True))
+    lf.top_function_words = sorted(fw_counts.items(), key=lambda x: x[1], reverse=True)[:20]
 
     # ── POS 比例 (v3.1: jieba.posseg 真正词性标注) ──────────────────
     engine = get_engine()
@@ -511,13 +798,12 @@ def _extract_lexical(text: str) -> LexicalFingerprint:
     pos_bigram_result = engine.get_pos_bigram_entropy(text)
     lf.pos_bigram_entropy = pos_bigram_result.get("bigram_entropy", 0.0)
     lf.pos_bigram_top = [
-        (bg, round(cnt, 4))
-        for bg, cnt in pos_bigram_result.get("top_bigrams", [])[:20]
+        (bg, round(cnt, 4)) for bg, cnt in pos_bigram_result.get("top_bigrams", [])[:20]
     ]
 
     # ── 词汇多样性 ────────────────────────────────────────────────────
     # 以字为单位（中文没有天然词边界）
-    chars = [c for c in text if '一' <= c <= '鿿' or '㐀' <= c <= '䶿']
+    chars = [c for c in text if "一" <= c <= "鿿" or "㐀" <= c <= "䶿"]
     total = len(chars)
     unique = len(set(chars))
 
@@ -526,7 +812,7 @@ def _extract_lexical(text: str) -> LexicalFingerprint:
     # TTR (1000字窗口平均)
     ttr_values = []
     for i in range(0, total, 1000):
-        window = chars[i:i + 1000]
+        window = chars[i : i + 1000]
         if len(window) < 500:
             continue
         window_unique = len(set(window))
@@ -549,8 +835,7 @@ def _extract_lexical(text: str) -> LexicalFingerprint:
 
     # ── 高频字偏好 Top-50 ─────────────────────────────────────────────
     lf.top_chars = [
-        (ch, round(cnt / max(total, 1) * 1000, 4))
-        for ch, cnt in freq_counter.most_common(50)
+        (ch, round(cnt / max(total, 1) * 1000, 4)) for ch, cnt in freq_counter.most_common(50)
     ]
 
     return lf
@@ -568,7 +853,7 @@ def _classify_char(ch: str) -> str:
         return "PRON"
     if ch in "一二三四五六七八九十百千万亿":
         return "NUM"
-    if '一' <= ch <= '鿿':
+    if "一" <= ch <= "鿿":
         return "WORD"
     return ""
 
@@ -610,33 +895,27 @@ def _extract_syntactic(text: str) -> tuple[SyntacticFingerprint, list[int]]:
 
     # ── 句长分布 ──────────────────────────────────────────────────────
     # 按句末标点分割
-    sentences = re.split(r'[。！？!?\n]', text)
+    sentences = re.split(r"[。！？!?\n]", text)
     sentence_lengths = [len(s.strip()) for s in sentences if len(s.strip()) > 1]
     raw_lengths = sentence_lengths[:]
 
     if sentence_lengths:
         sf.mean_sentence_len = round(mean(sentence_lengths), 1)
         sf.std_sentence_len = round(stdev(sentence_lengths), 1) if len(sentence_lengths) > 1 else 0
-        sf.sentence_len_discreteness = round(
-            sf.std_sentence_len / max(sf.mean_sentence_len, 1), 4
-        )
+        sf.sentence_len_discreteness = round(sf.std_sentence_len / max(sf.mean_sentence_len, 1), 4)
         if len(sentence_lengths) >= 4:
-            sf.sentence_len_quantiles = [
-                round(q, 1) for q in quantiles(sentence_lengths, n=4)
-            ][:3]  # p25, p50, p75
+            sf.sentence_len_quantiles = [round(q, 1) for q in quantiles(sentence_lengths, n=4)][
+                :3
+            ]  # p25, p50, p75
         else:
-            sf.sentence_len_quantiles = [
-                round(median(sentence_lengths), 1)
-            ]
+            sf.sentence_len_quantiles = [round(median(sentence_lengths), 1)]
 
     # ── 标点密度谱 ────────────────────────────────────────────────────
     total_chars = len(text)
     for punct, name in PUNCTUATION_MAP.items():
         count = text.count(punct)
         if count > 0:
-            sf.punctuation_spectrum[name] = round(
-                count / max(total_chars, 1) * 1000, 4
-            )
+            sf.punctuation_spectrum[name] = round(count / max(total_chars, 1) * 1000, 4)
     sf.total_punctuation_ratio = round(
         sum(text.count(p) for p in PUNCTUATION_MAP) / max(total_chars, 1), 4
     )
@@ -654,17 +933,32 @@ def _extract_syntactic(text: str) -> tuple[SyntacticFingerprint, list[int]]:
     sf.ellipsis_density = round(ellipsis_count / max(total_chars, 1) * 1000, 4)
 
     # ── 从句嵌套 — 启发式 ─────────────────────────────────────────────
-    sub_markers = ["因为", "所以", "如果", "虽然", "但是", "然而", "而且",
-                   "并且", "不过", "尽管", "除非", "无论", "即使", "只要",
-                   "当", "在……时", "……之后", "……之前"]
+    sub_markers = [
+        "因为",
+        "所以",
+        "如果",
+        "虽然",
+        "但是",
+        "然而",
+        "而且",
+        "并且",
+        "不过",
+        "尽管",
+        "除非",
+        "无论",
+        "即使",
+        "只要",
+        "当",
+        "在……时",
+        "……之后",
+        "……之前",
+    ]
     sub_count = sum(text.count(m) for m in sub_markers)
     sf.subordination_ratio = round(sub_count / max(total_chars, 1) * 1000, 4)
 
     # 嵌套深度近似：逗号密度
     comma_count = text.count("，") + text.count(",")
-    sf.avg_clause_depth = round(
-        comma_count / max(len(sentence_lengths), 1), 2
-    )
+    sf.avg_clause_depth = round(comma_count / max(len(sentence_lengths), 1), 2)
 
     return sf, raw_lengths
 
@@ -679,7 +973,7 @@ def _extract_discourse(text: str) -> tuple[DiscourseFingerprint, list[int]]:
     df = DiscourseFingerprint()
 
     # ── 段落呼吸节奏 ──────────────────────────────────────────────────
-    paragraphs = [p.strip() for p in text.split('\n') if p.strip()]
+    paragraphs = [p.strip() for p in text.split("\n") if p.strip()]
     para_lengths = [len(p) for p in paragraphs]
     raw_lengths = para_lengths[:]
 
@@ -695,8 +989,10 @@ def _extract_discourse(text: str) -> tuple[DiscourseFingerprint, list[int]]:
     total_chars = len(text) + 1
     # 对话：中文引号内的内容
     dialogue_patterns = [
-        r'「[^」]*」', r'『[^』]*』',
-        r'“[^”]*”', r'‘[^’]*’',
+        r"「[^」]*」",
+        r"『[^』]*』",
+        r"“[^”]*”",
+        r"‘[^’]*’",
         r'"[^"]*"',
     ]
     dialogue_chars = 0
@@ -708,8 +1004,10 @@ def _extract_discourse(text: str) -> tuple[DiscourseFingerprint, list[int]]:
 
     # 内心独白：括号内的心理描写
     inner_patterns = [
-        r'（[^）]*想[^）]*）', r'\([^)]*想[^)]*\)',
-        r'（[^）]*心[^）]*）', r'\([^)]*心[^)]*\)',
+        r"（[^）]*想[^）]*）",
+        r"\([^)]*想[^)]*\)",
+        r"（[^）]*心[^）]*）",
+        r"\([^)]*心[^)]*\)",
     ]
     inner_chars = 0
     for pat in inner_patterns:
@@ -726,8 +1024,12 @@ def _extract_discourse(text: str) -> tuple[DiscourseFingerprint, list[int]]:
         setattr(df, f"{sense}_density", density)
 
     df.total_sensory_density = round(
-        df.visual_density + df.auditory_density + df.tactile_density +
-        df.olfactory_density + df.gustatory_density, 4
+        df.visual_density
+        + df.auditory_density
+        + df.tactile_density
+        + df.olfactory_density
+        + df.gustatory_density,
+        4,
     )
 
     # ── 过渡词偏好 ────────────────────────────────────────────────────
@@ -737,9 +1039,7 @@ def _extract_discourse(text: str) -> tuple[DiscourseFingerprint, list[int]]:
         if cnt > 0:
             transition_counts[tw] = cnt
 
-    df.transition_density = round(
-        sum(transition_counts.values()) / max(total_chars, 1) * 1000, 4
-    )
+    df.transition_density = round(sum(transition_counts.values()) / max(total_chars, 1) * 1000, 4)
     df.top_transitions = transition_counts.most_common(10)
 
     return df, raw_lengths
@@ -762,9 +1062,18 @@ def _extract_narrative(text: str, chapters: list[dict]) -> NarrativeFingerprint:
 
     # ── 伏笔密度 ──────────────────────────────────────────────────────
     foreshadowing_patterns = [
-        "后来才知道", "直到后来", "很久以后", "那时还不",
-        "当时并不", "彼时尚且", "多年后回想", "没想到的是",
-        "隐隐感到", "莫名觉得", "似乎预示", "仿佛暗示",
+        "后来才知道",
+        "直到后来",
+        "很久以后",
+        "那时还不",
+        "当时并不",
+        "彼时尚且",
+        "多年后回想",
+        "没想到的是",
+        "隐隐感到",
+        "莫名觉得",
+        "似乎预示",
+        "仿佛暗示",
     ]
     foreshadow_count = sum(text.count(p) for p in foreshadowing_patterns)
     nf.foreshadowing_density = round(foreshadow_count / max(total_chars, 1) * 1000, 4)
@@ -775,7 +1084,9 @@ def _extract_narrative(text: str, chapters: list[dict]) -> NarrativeFingerprint:
 
     # ── 意象复用 ──────────────────────────────────────────────────────
     # 提取高频意象词（名词性词组）
-    image_pattern = re.compile(r'(?:剑|刀|枪|花|树|山|河|海|星|月|日|风|雨|雪|雾|云|火|冰|雷|光|影|血|泪|梦|魂)')
+    image_pattern = re.compile(
+        r"(?:剑|刀|枪|花|树|山|河|海|星|月|日|风|雨|雪|雾|云|火|冰|雷|光|影|血|泪|梦|魂)"
+    )
     images = image_pattern.findall(text)
     image_counter = Counter(images)
     nf.top_images = image_counter.most_common(15)
@@ -795,19 +1106,25 @@ def _extract_narrative(text: str, chapters: list[dict]) -> NarrativeFingerprint:
         txt = ch.get("text", "")
         if len(txt) < 100:
             continue
-        # 紧张度 = 短句比例 + 感叹号密度 + 因果词密度 + 战斗词密度
-        short_sent_ratio = sum(1 for s in re.split(r'[。！？!?\n]', txt)
-                               if 1 < len(s.strip()) <= 15) / max(len(re.split(r'[。！？!?\n]', txt)), 1)
+        # 紧张度由短句比例、感叹号密度与战斗词密度加权合成
+        short_sent_ratio = sum(
+            1 for s in re.split(r"[。！？!?\n]", txt) if 1 < len(s.strip()) <= 15
+        ) / max(len(re.split(r"[。！？!?\n]", txt)), 1)
         excla_density = txt.count("！") / max(len(txt), 1)
-        battle_words = sum(txt.count(w) for w in ["攻击", "战斗", "杀", "死", "爆发", "轰", "剑", "斩"])
+        battle_words = sum(
+            txt.count(w) for w in ["攻击", "战斗", "杀", "死", "爆发", "轰", "剑", "斩"]
+        )
         battle_density = battle_words / max(len(txt), 1) * 1000
-        tension = round(short_sent_ratio * 0.3 + excla_density * 100 * 0.3
-                        + min(battle_density / 10, 1) * 0.4, 4)
+        tension = round(
+            short_sent_ratio * 0.3 + excla_density * 100 * 0.3 + min(battle_density / 10, 1) * 0.4,
+            4,
+        )
         nf.chapter_tension_curve.append(tension)
 
     # ── v3.3：叙事增强 ────────────────────────────────────────────
     try:
         from .narrative_analyzer import get_analyzer as _get_narr_ana
+
         ana = _get_narr_ana()
         act_result = ana.detect_act_structure(text, num_acts=3)
         nf.act_coherence = act_result.act_coherence
@@ -824,12 +1141,11 @@ def _extract_narrative(text: str, chapters: list[dict]) -> NarrativeFingerprint:
 def _extract_chapter_brief(text: str, num: int, title: str) -> dict:
     """逐章简要指纹（用于漂移追踪）。"""
     chars = len(text)
-    sentences = re.split(r'[。！？!?\n]', text)
+    sentences = re.split(r"[。！？!?\n]", text)
     sent_lens = [len(s.strip()) for s in sentences if len(s.strip()) > 1]
 
     dialogue_chars = sum(
-        len(m.group()) for pat in [r'「[^」]*」', r'"[^"]*"']
-        for m in re.finditer(pat, text)
+        len(m.group()) for pat in [r"「[^」]*」", r'"[^"]*"'] for m in re.finditer(pat, text)
     )
 
     return {
@@ -840,9 +1156,7 @@ def _extract_chapter_brief(text: str, num: int, title: str) -> dict:
         "std_sentence_len": round(stdev(sent_lens), 1) if len(sent_lens) > 1 else 0,
         "dialogue_ratio": round(dialogue_chars / max(chars, 1), 4),
         "exclamatory_ratio": round(text.count("！") / max(len(sentences), 1), 4),
-        "punctuation_ratio": round(
-            sum(text.count(p) for p in PUNCTUATION_MAP) / max(chars, 1), 4
-        ),
+        "punctuation_ratio": round(sum(text.count(p) for p in PUNCTUATION_MAP) / max(chars, 1), 4),
         "function_word_density": round(
             sum(text.count(fw) for fw in FUNCTION_WORDS[:20]) / max(chars, 1) * 1000, 2
         ),
@@ -876,6 +1190,7 @@ def detect_style_drift(
     # 自动加载预置基线
     if baseline is None and genre:
         from .baselines import load_genre_baseline
+
         baseline_dict = load_genre_baseline(genre)
         baseline = _dict_to_fingerprint(baseline_dict)
 
@@ -891,29 +1206,32 @@ def detect_style_drift(
     drift_dims = _compare_dimensions(ch_fp, baseline, threshold)
 
     # 计算四层风格保真度（SI）
-    layer_fidelities = []
-    for layer_name, dims in _group_dims_by_layer(drift_dims).items():
-        if dims:
-            layer_fidelity = sum(d["fidelity"] for d in dims) / len(dims)
-        else:
-            layer_fidelity = 1.0
-        layer_fidelities.append(layer_fidelity)
+    layer_fidelities = [
+        (sum(d["fidelity"] for d in dims) / len(dims)) if dims else 1.0
+        for dims in _group_dims_by_layer(drift_dims).values()
+    ]
 
     style_fidelity = round(sum(layer_fidelities) / max(len(layer_fidelities), 1), 4)
 
     # 内容独立性（SP）：情节不同但风格应保持 → 基于标点/虚词/句长等表面特征
-    surface_dims = [d for d in drift_dims
-                    if d["dimension"] in {"虚词谱", "标点谱", "句长分布", "句式比", "段落节奏"}]
-    content_independence = round(
-        sum(d["fidelity"] for d in surface_dims) / max(len(surface_dims), 1), 4
-    ) if surface_dims else 1.0
+    surface_dims = [
+        d
+        for d in drift_dims
+        if d["dimension"] in {"虚词谱", "标点谱", "句长分布", "句式比", "段落节奏"}
+    ]
+    content_independence = (
+        round(sum(d["fidelity"] for d in surface_dims) / max(len(surface_dims), 1), 4)
+        if surface_dims
+        else 1.0
+    )
 
     # 流畅度（FS）：基于对话比/感官密度的自然范围
-    fluency_dims = [d for d in drift_dims
-                    if d["dimension"] in {"对话比", "感官密度", "过渡词密度"}]
-    fluency = round(
-        sum(d["fidelity"] for d in fluency_dims) / max(len(fluency_dims), 1), 4
-    ) if fluency_dims else 1.0
+    fluency_dims = [d for d in drift_dims if d["dimension"] in {"对话比", "感官密度", "过渡词密度"}]
+    fluency = (
+        round(sum(d["fidelity"] for d in fluency_dims) / max(len(fluency_dims), 1), 4)
+        if fluency_dims
+        else 1.0
+    )
 
     # 总体真实度 OA = SI × SP × FS
     overall = round(style_fidelity * content_independence * fluency, 4)
@@ -951,6 +1269,7 @@ def detect_cross_chapter_drift(
     # 自动加载预置基线
     if baseline is None and genre:
         from .baselines import load_genre_baseline
+
         baseline_dict = load_genre_baseline(genre)
         baseline = _dict_to_fingerprint(baseline_dict)
 
@@ -989,13 +1308,12 @@ def compare_style_fingerprints(
     dl_similarity = None
     if dl:
         engine = get_dl_engine()
-        if engine.is_available():
-            # 如果指纹已包含 DL 嵌入则直接用，否则不额外编码（指纹提取时才编码）
-            if target.dl_embedding and reference.dl_embedding:
-                dl_similarity = engine._cosine_similarity(
-                    target.dl_embedding, reference.dl_embedding
-                )
-                dl_similarity = round(dl_similarity, 4)
+        # 如果指纹已包含 DL 嵌入则直接用，否则不额外编码（指纹提取时才编码）
+        if engine.is_available() and target.dl_embedding and reference.dl_embedding:
+            dl_similarity = engine._cosine_similarity(
+                target.dl_embedding, reference.dl_embedding
+            )
+            dl_similarity = round(dl_similarity, 4)
 
     dims = _compare_dimensions(target, reference, threshold=0.10)
 
@@ -1005,15 +1323,11 @@ def compare_style_fingerprints(
     layer_scores = {}
     for layer, dim_list in by_layer.items():
         if dim_list:
-            layer_scores[layer] = round(
-                sum(d["fidelity"] for d in dim_list) / len(dim_list), 4
-            )
+            layer_scores[layer] = round(sum(d["fidelity"] for d in dim_list) / len(dim_list), 4)
         else:
             layer_scores[layer] = 1.0
 
-    overall_similarity = round(
-        sum(layer_scores.values()) / max(len(layer_scores), 1), 4
-    )
+    overall_similarity = round(sum(layer_scores.values()) / max(len(layer_scores), 1), 4)
 
     # v4.0: DL 相似度与规则相似度融合
     if dl_similarity is not None:
@@ -1094,8 +1408,7 @@ def build_baseline_from_chapters(
         return StyleFingerprint(novel_name=novel_name)
 
     # 合并（取中位数聚合）
-    combined = _merge_fingerprints(chapter_fps, novel_name, author, genre)
-    return combined
+    return _merge_fingerprints(chapter_fps, novel_name, author, genre)
 
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -1174,7 +1487,7 @@ class Fingerprint:
         Path(path).write_text(self.to_json(), encoding="utf-8")
 
     @staticmethod
-    def load(path: str) -> "Fingerprint":
+    def load(path: str) -> Fingerprint:
         return Fingerprint(json.loads(Path(path).read_text(encoding="utf-8")))
 
 
@@ -1186,9 +1499,7 @@ def extract_fingerprint(
     author: str = "",
 ) -> Fingerprint:
     """旧版风格指纹提取（向后兼容）。内部调用新版引擎。"""
-    fp = extract_style_fingerprint(
-        text, novel_name=novel_name, author=author, genre=genre
-    )
+    fp = extract_style_fingerprint(text, novel_name=novel_name, author=author, genre=genre)
 
     # 转换为旧版 Fingerprint 格式
     d = fp.to_dict()
@@ -1207,35 +1518,35 @@ def extract_fingerprint(
         "unique_char_count": 0,
     }
 
-    # 从新版数据补充旧版字段
-    l1 = d["L1_lexical"]
-    l3 = d["L3_discourse"]
-
     # 使用原有 analyzer 获取鸿沟密度等补充指标
     try:
         ch_result = analyzer.analyze_chapter(text, 0, novel_name)
-        profile.update({
-            "avg_gap_density": ch_result.get("gap_density", 0),
-            "avg_touchpoints": ch_result.get("touchpoints", 0),
-            "avg_emotion_ratio": ch_result.get("emotion_to_touchpoint_ratio", 0),
-            "scene_flip_rate": 1.0 if ch_result.get("scene_flipped") else 0,
-            "avg_hook_position": ch_result.get("first_hook_position", 0),
-        })
+        profile.update(
+            {
+                "avg_gap_density": ch_result.get("gap_density", 0),
+                "avg_touchpoints": ch_result.get("touchpoints", 0),
+                "avg_emotion_ratio": ch_result.get("emotion_to_touchpoint_ratio", 0),
+                "scene_flip_rate": 1.0 if ch_result.get("scene_flipped") else 0,
+                "avg_hook_position": ch_result.get("first_hook_position", 0),
+            }
+        )
     except Exception:
         pass
 
     # 发现模式
     patterns = _discover_patterns_v2(fp)
 
-    return Fingerprint({
-        "novel": novel_name,
-        "author": author,
-        "genre": genre,
-        "profile": profile,
-        "patterns": patterns,
-        "chapter_count": d["meta"]["chapter_count"],
-        "_style_fingerprint": d,  # 嵌入新版完整指纹
-    })
+    return Fingerprint(
+        {
+            "novel": novel_name,
+            "author": author,
+            "genre": genre,
+            "profile": profile,
+            "patterns": patterns,
+            "chapter_count": d["meta"]["chapter_count"],
+            "_style_fingerprint": d,  # 嵌入新版完整指纹
+        }
+    )
 
 
 def save_fingerprint(fp: Fingerprint, path: str):
@@ -1256,13 +1567,15 @@ def list_available_fingerprints(bench_dir: str = None) -> list[dict]:
     for f in bench_path.glob("*.fingerprint"):
         try:
             fp = Fingerprint.load(str(f))
-            fingerprints.append({
-                "novel": fp.novel_name,
-                "author": fp.data.get("author", ""),
-                "genre": fp.genre,
-                "chapters": fp.data.get("chapter_count", 0),
-                "path": str(f),
-            })
+            fingerprints.append(
+                {
+                    "novel": fp.novel_name,
+                    "author": fp.data.get("author", ""),
+                    "genre": fp.genre,
+                    "chapters": fp.data.get("chapter_count", 0),
+                    "path": str(f),
+                }
+            )
         except Exception:
             continue
     return fingerprints
@@ -1276,7 +1589,7 @@ def list_available_fingerprints(bench_dir: str = None) -> list[dict]:
 def _split_chapters(text: str) -> list[dict]:
     """分割章节。"""
     # Markdown headers
-    headers = list(re.finditer(r'^#{1,3}\s+.+$', text, re.MULTILINE))
+    headers = list(re.finditer(r"^#{1,3}\s+.+$", text, re.MULTILINE))
     chapters = []
     if len(headers) >= 3:
         for i, m in enumerate(headers):
@@ -1288,7 +1601,7 @@ def _split_chapters(text: str) -> list[dict]:
 
     # 中文章节模式
     if len(chapters) < 2:
-        chapter_pattern = re.compile(r'(第[一二三四五六七八九十百千万\d]+[章节部回])')
+        chapter_pattern = re.compile(r"(第[一二三四五六七八九十百千万\d]+[章节部回])")
         headers_cn = list(chapter_pattern.finditer(text))
         if len(headers_cn) >= 2:
             chapters = []
@@ -1316,52 +1629,120 @@ def _compare_dimensions(
     b = baseline
 
     # L1 词汇
-    _add_dim(dims, "L1", "虚词谱", _dict_cosine(t.lexical.function_word_spectrum,
-                                                 b.lexical.function_word_spectrum), threshold)
+    _add_dim(
+        dims,
+        "L1",
+        "虚词谱",
+        _dict_cosine(t.lexical.function_word_spectrum, b.lexical.function_word_spectrum),
+        threshold,
+    )
     _add_dim(dims, "L1", "词汇多样性", _ratio_fidelity(t.lexical.ttr, b.lexical.ttr), threshold)
-    _add_dim(dims, "L1", "高频字偏好", _list_overlap(t.lexical.top_chars, b.lexical.top_chars), threshold)
-    _add_dim(dims, "L1", "词性比例", _dict_cosine(t.lexical.pos_ratio, b.lexical.pos_ratio), threshold)
+    _add_dim(
+        dims, "L1", "高频字偏好", _list_overlap(t.lexical.top_chars, b.lexical.top_chars), threshold
+    )
+    _add_dim(
+        dims, "L1", "词性比例", _dict_cosine(t.lexical.pos_ratio, b.lexical.pos_ratio), threshold
+    )
 
     # L2 句法
-    _add_dim(dims, "L2", "句长分布", _ratio_fidelity(t.syntactic.mean_sentence_len,
-                                                       b.syntactic.mean_sentence_len), threshold)
-    _add_dim(dims, "L2", "句长离散度", _ratio_fidelity(t.syntactic.sentence_len_discreteness,
-                                                          b.syntactic.sentence_len_discreteness), threshold)
-    _add_dim(dims, "L2", "标点谱", _dict_cosine(t.syntactic.punctuation_spectrum,
-                                                 b.syntactic.punctuation_spectrum), threshold)
-    _add_dim(dims, "L2", "句式比", _ratio_fidelity(t.syntactic.declarative_ratio,
-                                                    b.syntactic.declarative_ratio), threshold)
-    _add_dim(dims, "L2", "感叹密度", _ratio_fidelity(t.syntactic.exclamatory_ratio,
-                                                       b.syntactic.exclamatory_ratio), threshold)
+    _add_dim(
+        dims,
+        "L2",
+        "句长分布",
+        _ratio_fidelity(t.syntactic.mean_sentence_len, b.syntactic.mean_sentence_len),
+        threshold,
+    )
+    _add_dim(
+        dims,
+        "L2",
+        "句长离散度",
+        _ratio_fidelity(
+            t.syntactic.sentence_len_discreteness, b.syntactic.sentence_len_discreteness
+        ),
+        threshold,
+    )
+    _add_dim(
+        dims,
+        "L2",
+        "标点谱",
+        _dict_cosine(t.syntactic.punctuation_spectrum, b.syntactic.punctuation_spectrum),
+        threshold,
+    )
+    _add_dim(
+        dims,
+        "L2",
+        "句式比",
+        _ratio_fidelity(t.syntactic.declarative_ratio, b.syntactic.declarative_ratio),
+        threshold,
+    )
+    _add_dim(
+        dims,
+        "L2",
+        "感叹密度",
+        _ratio_fidelity(t.syntactic.exclamatory_ratio, b.syntactic.exclamatory_ratio),
+        threshold,
+    )
 
     # L3 篇章
-    _add_dim(dims, "L3", "段落节奏", _ratio_fidelity(t.discourse.mean_paragraph_len,
-                                                       b.discourse.mean_paragraph_len), threshold)
-    _add_dim(dims, "L3", "对话比", _ratio_fidelity(t.discourse.dialogue_ratio,
-                                                    b.discourse.dialogue_ratio), threshold)
-    _add_dim(dims, "L3", "感官密度", _ratio_fidelity(t.discourse.total_sensory_density,
-                                                       b.discourse.total_sensory_density), threshold)
-    _add_dim(dims, "L3", "过渡词密度", _ratio_fidelity(t.discourse.transition_density,
-                                                         b.discourse.transition_density), threshold)
+    _add_dim(
+        dims,
+        "L3",
+        "段落节奏",
+        _ratio_fidelity(t.discourse.mean_paragraph_len, b.discourse.mean_paragraph_len),
+        threshold,
+    )
+    _add_dim(
+        dims,
+        "L3",
+        "对话比",
+        _ratio_fidelity(t.discourse.dialogue_ratio, b.discourse.dialogue_ratio),
+        threshold,
+    )
+    _add_dim(
+        dims,
+        "L3",
+        "感官密度",
+        _ratio_fidelity(t.discourse.total_sensory_density, b.discourse.total_sensory_density),
+        threshold,
+    )
+    _add_dim(
+        dims,
+        "L3",
+        "过渡词密度",
+        _ratio_fidelity(t.discourse.transition_density, b.discourse.transition_density),
+        threshold,
+    )
 
     # L4 叙事
-    _add_dim(dims, "L4", "因果链密度", _ratio_fidelity(t.narrative.causality_marker_density,
-                                                         b.narrative.causality_marker_density), threshold)
-    _add_dim(dims, "L4", "视角切换频率", _ratio_fidelity(t.narrative.pov_switch_frequency,
-                                                           b.narrative.pov_switch_frequency), threshold)
+    _add_dim(
+        dims,
+        "L4",
+        "因果链密度",
+        _ratio_fidelity(t.narrative.causality_marker_density, b.narrative.causality_marker_density),
+        threshold,
+    )
+    _add_dim(
+        dims,
+        "L4",
+        "视角切换频率",
+        _ratio_fidelity(t.narrative.pov_switch_frequency, b.narrative.pov_switch_frequency),
+        threshold,
+    )
 
     return dims
 
 
 def _add_dim(dims: list, layer: str, name: str, fidelity: float, threshold: float):
     deviation = 1.0 - fidelity
-    dims.append({
-        "layer": layer,
-        "dimension": name,
-        "fidelity": round(fidelity, 4),
-        "deviation": round(deviation, 4),
-        "drifted": deviation > threshold,
-    })
+    dims.append(
+        {
+            "layer": layer,
+            "dimension": name,
+            "fidelity": round(fidelity, 4),
+            "deviation": round(deviation, 4),
+            "drifted": deviation > threshold,
+        }
+    )
 
 
 def _ratio_fidelity(a: float, b: float) -> float:
@@ -1370,8 +1751,7 @@ def _ratio_fidelity(a: float, b: float) -> float:
         return 1.0
     if a == 0 or b == 0:
         return 0.0
-    ratio = min(a, b) / max(a, b)
-    return ratio
+    return min(a, b) / max(a, b)
 
 
 def _dict_cosine(a: dict, b: dict) -> float:
@@ -1390,8 +1770,8 @@ def _dict_cosine(a: dict, b: dict) -> float:
 
 def _list_overlap(a: list[tuple], b: list[tuple], top_n: int = 20) -> float:
     """两个 Top-N 列表的重叠度。"""
-    a_set = set(item[0] for item in a[:top_n])
-    b_set = set(item[0] for item in b[:top_n])
+    a_set = {item[0] for item in a[:top_n]}
+    b_set = {item[0] for item in b[:top_n]}
     if not a_set or not b_set:
         return 0.0
     return len(a_set & b_set) / len(a_set | b_set)
@@ -1423,7 +1803,7 @@ def _merge_fingerprints(
         chapter_count=sum(fp.chapter_count for fp in fps),
     )
 
-    # L1: 词汇
+    # L1 词汇
     for key in merged.lexical.pos_ratio:
         values = [fp.lexical.pos_ratio.get(key, 0) for fp in fps]
         merged.lexical.pos_ratio[key] = _robust_mean(values)
@@ -1444,13 +1824,11 @@ def _merge_fingerprints(
         merged.lexical.function_word_spectrum.items(), key=lambda x: x[1], reverse=True
     )[:20]
 
-    # L2: 句法
+    # L2 句法
     merged.syntactic.mean_sentence_len = _robust_mean(
         [fp.syntactic.mean_sentence_len for fp in fps]
     )
-    merged.syntactic.std_sentence_len = _robust_mean(
-        [fp.syntactic.std_sentence_len for fp in fps]
-    )
+    merged.syntactic.std_sentence_len = _robust_mean([fp.syntactic.std_sentence_len for fp in fps])
     merged.syntactic.total_punctuation_ratio = _robust_mean(
         [fp.syntactic.total_punctuation_ratio for fp in fps]
     )
@@ -1472,13 +1850,11 @@ def _merge_fingerprints(
         [fp.syntactic.interrogative_ratio for fp in fps]
     )
 
-    # L3: 篇章
+    # L3 篇章
     merged.discourse.mean_paragraph_len = _robust_mean(
         [fp.discourse.mean_paragraph_len for fp in fps]
     )
-    merged.discourse.dialogue_ratio = _robust_mean(
-        [fp.discourse.dialogue_ratio for fp in fps]
-    )
+    merged.discourse.dialogue_ratio = _robust_mean([fp.discourse.dialogue_ratio for fp in fps])
     merged.discourse.total_sensory_density = _robust_mean(
         [fp.discourse.total_sensory_density for fp in fps]
     )
@@ -1486,7 +1862,7 @@ def _merge_fingerprints(
         [fp.discourse.transition_density for fp in fps]
     )
 
-    # L4: 叙事
+    # L4 叙事
     merged.narrative.causality_marker_density = _robust_mean(
         [fp.narrative.causality_marker_density for fp in fps]
     )

@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 m4_analyze_traces.py — M4 验收核算脚本（AI 模拟/真人 trace 通用）
 
@@ -26,7 +25,7 @@ import argparse
 import json
 import sys
 from collections import Counter, OrderedDict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -37,8 +36,8 @@ def parse_iso(ts: str):
         s = s[:-1] + "+00:00"
     dt = datetime.fromisoformat(s)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(timezone.utc)
+        dt = dt.replace(tzinfo=UTC)
+    return dt.astimezone(UTC)
 
 
 def is_proposal_edit(ev: dict) -> bool:
@@ -55,10 +54,10 @@ def is_proposal_edit(ev: dict) -> bool:
 
 
 def analyze_one(path: Path) -> dict:
-    with open(path, "r", encoding="utf-8") as f:
+    with open(path, encoding="utf-8") as f:
         events = json.load(f)
     if not isinstance(events, list):
-        raise ValueError(f"{path} 顶层不是 JSON 数组")
+        raise TypeError(f"{path} 顶层不是 JSON 数组")
 
     total = len(events)
     op_dist = OrderedDict(sorted(Counter(e.get("op") for e in events).items()))
@@ -106,12 +105,15 @@ def analyze_one(path: Path) -> dict:
 
 
 def summarize(results: list) -> dict:
-    n = len(results) or 1
     tot_dec = sum(r["rule_decisions"]["count"] for r in results)
     tot_acc = sum(r["rule_decisions"]["accept"] for r in results)
     tot_rej = sum(r["rule_decisions"]["reject"] for r in results)
     ms_means = [r["mean_decision_ms"] for r in results if r["rule_decisions"]["count"] >= 1]
-    sr = [r["edit_links"]["success_rate"] for r in results if r["edit_links"]["success_rate"] is not None]
+    sr = [
+        r["edit_links"]["success_rate"]
+        for r in results
+        if r["edit_links"]["success_rate"] is not None
+    ]
     return {
         "authors": len(results),
         "total_decisions": tot_dec,
@@ -124,7 +126,9 @@ def summarize(results: list) -> dict:
 
 
 def main(argv=None):
-    ap = argparse.ArgumentParser(description="M4 trace 核算脚本（读 trace JSON → 统计 → 输出 JSON）")
+    ap = argparse.ArgumentParser(
+        description="M4 trace 核算脚本（读 trace JSON → 统计 → 输出 JSON）"
+    )
     ap.add_argument("--traces", nargs="+", required=True, help="trace JSON 文件列表")
     ap.add_argument("--output", default="", help="输出 JSON 路径；缺省打印到 stdout")
     args = ap.parse_args(argv)
@@ -133,12 +137,15 @@ def main(argv=None):
     for p in args.traces:
         fp = Path(p)
         if not fp.exists():
-            print(json.dumps({"error": f"trace 文件不存在: {fp}"}, ensure_ascii=False), file=sys.stderr)
+            print(
+                json.dumps({"error": f"trace 文件不存在: {fp}"}, ensure_ascii=False),
+                file=sys.stderr,
+            )
             sys.exit(2)
         results.append(analyze_one(fp))
 
     payload = {
-        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "per_trace": results,
         "summary": summarize(results),
     }

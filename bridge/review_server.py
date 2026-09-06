@@ -9,6 +9,7 @@
 启动：python -m bridge.review_server
 访问：http://127.0.0.1:8766/review.html
 """
+
 from __future__ import annotations
 
 import os
@@ -44,4 +45,5 @@ async def review_page():
 
 if __name__ == "__main__":
     import uvicorn
+
     uvicorn.run(app, host="127.0.0.1", port=8766)

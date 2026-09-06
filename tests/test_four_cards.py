@@ -2,11 +2,12 @@
 四卡数据模型测试（FOUR_CARD_PLAN 里程碑1）
 Run: python -X utf8 -m pytest tests/test_four_cards.py -v
 """
+
 import pytest
 
 from core.four_cards import (
-    CharacterBiography,
     ChapterBeat,
+    CharacterBiography,
     FourCardProject,
     FrameworkBeat,
     SampleStory,
@@ -22,8 +23,11 @@ class TestDataModels:
 
     def test_biography_full_roundtrip(self):
         bio = CharacterBiography(
-            name="沈砚", want="夺回家族当铺", wound="七岁被至亲当众遗弃",
-            lie="对人交心等于死于背叛", change="最后把刀递给仇人",
+            name="沈砚",
+            want="夺回家族当铺",
+            wound="七岁被至亲当众遗弃",
+            lie="对人交心等于死于背叛",
+            change="最后把刀递给仇人",
             voice_traits=["短句克制"],
         )
         d = bio.model_dump()
@@ -66,4 +70,5 @@ class TestDataModels:
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__, "-v", "-s"])

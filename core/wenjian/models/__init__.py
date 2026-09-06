@@ -2,17 +2,14 @@
 
 # ── 审计模型 ──
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 from enum import Enum
+from typing import Any
 
 # ── 注册 LLM 供应商 ──
-from . import base
-from . import ollama
-from . import openai
-from . import anthropic
+from . import anthropic, base, ollama, openai
 
 
-class GateSeverity(str, Enum):
+class GateSeverity(str, Enum):  # noqa: UP042  # StrEnum 需 3.11+，CI 矩阵含 3.10
     BLOCK = "block"
     WARN = "warn"
     PASS = "pass"
@@ -25,8 +22,8 @@ class GateResult:
     severity: GateSeverity
     passed: bool
     message: str = ""
-    details: Dict[str, Any] = field(default_factory=dict)
-    score: Optional[float] = None
+    details: dict[str, Any] = field(default_factory=dict)
+    score: float | None = None
     skipped: bool = False  # 结构门禁缺跨章数据时跳过（不计入失败）
 
     def to_dict(self) -> dict:
@@ -47,23 +44,26 @@ class Scene:
     id: str
     text: str
     chapter: str = ""
-    entry_value: Optional[Dict[str, str]] = None
-    exit_value: Optional[Dict[str, str]] = None
+    entry_value: dict[str, str] | None = None
+    exit_value: dict[str, str] | None = None
 
 
 @dataclass
 class AuditReport:
     report_id: str
-    gate_results: List[GateResult] = field(default_factory=list)
+    gate_results: list[GateResult] = field(default_factory=list)
     overall_status: str = "pass"
 
     def add(self, result: GateResult):
         self.gate_results.append(result)
         if result.severity == GateSeverity.BLOCK and result.passed is False:
             self.overall_status = "block"
-        elif result.severity == GateSeverity.WARN and result.passed is False:
-            if self.overall_status != "block":
-                self.overall_status = "warn"
+        elif (
+            result.severity == GateSeverity.WARN
+            and result.passed is False
+            and self.overall_status != "block"
+        ):
+            self.overall_status = "warn"
 
     def to_dict(self) -> dict:
         return {
@@ -74,9 +74,18 @@ class AuditReport:
 
 
 VALUE_PAIRS = [
-    ("生", "死"), ("爱", "恨"), ("信任", "背叛"),
-    ("希望", "绝望"), ("自由", "束缚"), ("正义", "不公"),
-    ("真相", "谎言"), ("力量", "无力"), ("圆满", "残缺"),
-    ("归属", "孤立"), ("荣耀", "耻辱"), ("勇敢", "怯懦"),
-    ("清醒", "幻觉"), ("和解", "决裂"),
+    ("生", "死"),
+    ("爱", "恨"),
+    ("信任", "背叛"),
+    ("希望", "绝望"),
+    ("自由", "束缚"),
+    ("正义", "不公"),
+    ("真相", "谎言"),
+    ("力量", "无力"),
+    ("圆满", "残缺"),
+    ("归属", "孤立"),
+    ("荣耀", "耻辱"),
+    ("勇敢", "怯懦"),
+    ("清醒", "幻觉"),
+    ("和解", "决裂"),
 ]

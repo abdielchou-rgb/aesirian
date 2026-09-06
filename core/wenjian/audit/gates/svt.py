@@ -1,8 +1,10 @@
 from __future__ import annotations
+
 """Scene Value Turn gates (SVT-01 to SVT-04)."""
 
+from wenjian.models import GateResult, GateSeverity
+
 from .base import BaseGate
-from wenjian.models import GateSeverity, GateResult
 
 
 class SVT01_SingleSceneFlip(BaseGate):
@@ -11,7 +13,9 @@ class SVT01_SingleSceneFlip(BaseGate):
     description = "场景入口和出口的价值观极性必须不同"
     severity = GateSeverity.WARN
 
-    def evaluate(self, entry_value: str, exit_value: str, current_total: int = 0, flip_count: int = 0) -> GateResult:
+    def evaluate(
+        self, entry_value: str, exit_value: str, current_total: int = 0, flip_count: int = 0
+    ) -> GateResult:
         if entry_value == exit_value:
             return self.fail_result(
                 message=f"场景价值观未翻转：入口'{entry_value}' → 出口'{exit_value}'",
@@ -57,7 +61,11 @@ class SVT03_ValueMonotone(BaseGate):
             dominant_pair = max(value_pair_counts, key=value_pair_counts.get)
             return self.fail_result(
                 message=f"价值观'{dominant_pair}'占{ratio:.0%}，超过80%阈值",
-                details={"ratio": round(ratio, 2), "dominant_pair": dominant_pair, "counts": value_pair_counts},
+                details={
+                    "ratio": round(ratio, 2),
+                    "dominant_pair": dominant_pair,
+                    "counts": value_pair_counts,
+                },
             )
         return self.pass_result(details={"dominant_ratio": round(ratio, 2)})
 

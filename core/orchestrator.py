@@ -15,24 +15,28 @@
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Optional
+
 import json
 import os
 import sys
+from dataclasses import dataclass, field
 
 # 添加核心模块到路径
 sys.path.insert(0, os.path.dirname(__file__))
 
-from tom_engine import TheoryOfMindEngine, BeliefSource, Belief, Goal
-from knowledge_graph import TemporalKnowledgeGraph, NodeType, EdgeType
-from consistency_gates import ConsistencyGateSystem, GateLevel, AuditReport
-from reader_model import ReaderModelSimulator, EventCooldownMatrix
+from consistency_gates import AuditReport, ConsistencyGateSystem, GateLevel
+
 # EntityExtractor 保留兼容性导入
 from entity_extractor import EntityExtractor as RegexEntityExtractor
+from knowledge_graph import NodeType, TemporalKnowledgeGraph
+from reader_model import EventCooldownMatrix, ReaderModelSimulator
+from tom_engine import Belief, BeliefSource, Goal, TheoryOfMindEngine
+
 # 新增：Transformers NER 提取器
 try:
-    from transformers_ner import EntityExtractor as TransformersEntityExtractor, is_transformers_available
+    from transformers_ner import EntityExtractor as TransformersEntityExtractor
+    from transformers_ner import is_transformers_available
+
     _TRANSFORMERS_NER_AVAILABLE = is_transformers_available()
 except ImportError:
     TransformersEntityExtractor = None
@@ -40,18 +44,22 @@ except ImportError:
 
 # 桥接层
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "bridge"))
-from nsef import NarrativeStatePackage, CharacterSeed, BeliefState, OpenThread, SecretState
-
-# 持久化层
-from core.persistence.store import ProjectStore
-from core.persistence.models import Project, Chapter, CharacterRecord, WorldElement, Foreshadowing
+from nsef import NarrativeStatePackage
 
 # 观测性
 from core.observability import (
-    configure_observability, trace_span, trace_context,
-    trace_chapter_generation, trace_gate_audit, trace_tom_query, trace_kg_operation,
-    track_llm_call, log
+    configure_observability,
+    trace_chapter_generation,
+    trace_context,
+    trace_gate_audit,
+    trace_kg_operation,
+    trace_span,
+    trace_tom_query,
 )
+from core.persistence.models import Foreshadowing
+
+# 持久化层
+from core.persistence.store import ProjectStore
 
 # 初始化观测性
 configure_observability()
@@ -71,6 +79,7 @@ _NODE_TYPE_TO_DB = {
 @dataclass
 class ChapterInfo:
     """已提交章节的存储记录"""
+
     chapter_number: int
     title: str
     text: str
@@ -82,6 +91,7 @@ class ProjectState:
 
     运行时对象——从持久化存储重建，不直接持久化。
     """
+
     project_id: str
     title: str = ""
     premise: str = ""
@@ -111,7 +121,7 @@ class Orchestrator:
     所有项目状态持久化到 SQLite；运行时引擎按需重建。
     """
 
-    def __init__(self, store: Optional[ProjectStore] = None):
+    def __init__(self, store: ProjectStore | None = None):
         self.store = store or ProjectStore()
         # 运行时缓存：project_id → ProjectState
         self._runtime_cache: dict[str, ProjectState] = {}
@@ -120,7 +130,7 @@ class Orchestrator:
     # 运行时引擎重建
     # ═══════════════════════════════════════
 
-    def _load_project_state(self, project_id: str) -> Optional[ProjectState]:
+    def _load_project_state(self, project_id: str) -> ProjectState | None:
         """从持久化存储完整重建运行时 ProjectState"""
         project = self.store.get_project(project_id)
         if not project:
@@ -146,11 +156,7 @@ class Orchestrator:
         self._rebuild_foreshadowings(state)
 
         # 设置引擎依赖
-        state.gates.set_dependencies(
-            kg=state.kg,
-            tom=state.tom,
-            reader=state.reader
-        )
+        state.gates.set_dependencies(kg=state.kg, tom=state.tom, reader=state.reader)
 
         # 重建冷却矩阵
         self._rebuild_cooldown(state)
@@ -195,12 +201,14 @@ class Orchestrator:
             goals = json.loads(record.goals_json) if record.goals_json else []
             for goal_data in goals:
                 if isinstance(goal_data, dict):
-                    char.active_goals.append(Goal(
-                        description=goal_data.get("description", ""),
-                        priority=goal_data.get("priority", 1),
-                        active=goal_data.get("active", True),
-                        since_chapter=goal_data.get("since_chapter", 1),
-                    ))
+                    char.active_goals.append(
+                        Goal(
+                            description=goal_data.get("description", ""),
+                            priority=goal_data.get("priority", 1),
+                            active=goal_data.get("active", True),
+                            since_chapter=goal_data.get("since_chapter", 1),
+                        )
+                    )
                 elif isinstance(goal_data, str):
                     char.active_goals.append(Goal(description=goal_data))
 
@@ -219,8 +227,9 @@ class Orchestrator:
             # 注册到知识图谱
             traits = json.loads(record.traits_json) if record.traits_json else {}
             state.kg.add_node(
-                record.name, NodeType.CHARACTER,
-                properties={"role": record.role, "character_id": record.id, **traits}
+                record.name,
+                NodeType.CHARACTER,
+                properties={"role": record.role, "character_id": record.id, **traits},
             )
 
     def _rebuild_chapters(self, state: ProjectState):
@@ -228,18 +237,22 @@ class Orchestrator:
         chapters = self.store.get_chapters(state.project_id)
         state.chapters = []
         for ch in chapters:
-            state.chapters.append(ChapterInfo(
-                chapter_number=ch.number,
-                title=ch.title,
-                text=ch.text,
-            ))
+            state.chapters.append(
+                ChapterInfo(
+                    chapter_number=ch.number,
+                    title=ch.title,
+                    text=ch.text,
+                )
+            )
             state.current_chapter = max(state.current_chapter, ch.number)
             state.kg.current_chapter = max(state.kg.current_chapter, ch.number)
             state.tom.current_chapter = max(state.tom.current_chapter, ch.number)
-            state.reader.model.known_characters = list(set(
-                state.reader.model.known_characters +
-                [c.name for c in state.tom.get_all_characters()]
-            ))
+            state.reader.model.known_characters = list(
+                set(
+                    state.reader.model.known_characters
+                    + [c.name for c in state.tom.get_all_characters()]
+                )
+            )
 
     def _rebuild_world_elements(self, state: ProjectState):
         """从持久化世界元素记录重建知识图谱"""
@@ -263,19 +276,22 @@ class Orchestrator:
         for fo in foreshadowings:
             if fo.status == "open":
                 state.kg.add_node(
-                    fo.description, NodeType.EVENT,
+                    fo.description,
+                    NodeType.EVENT,
                     properties={
                         "is_open_thread": True,
                         "foreshadowing_id": fo.id,
                         "expected_resolution": "reveal",
-                    }
+                    },
                 )
 
     def _rebuild_cooldown(self, state: ProjectState):
         """从项目风格档案重建冷却矩阵"""
         fingerprint = self.store.get_latest_style_fingerprint(state.project_id)
         if fingerprint:
-            tone_vector = json.loads(fingerprint.tone_vector_json) if fingerprint.tone_vector_json else {}
+            tone_vector = (
+                json.loads(fingerprint.tone_vector_json) if fingerprint.tone_vector_json else {}
+            )
             for tone, weight in tone_vector.items():
                 if weight > 0:
                     state.cooldown.record_usage(tone)
@@ -297,7 +313,7 @@ class Orchestrator:
                 except (json.JSONDecodeError, KeyError):
                     pass
 
-    def _get_or_load_project(self, project_id: str) -> Optional[ProjectState]:
+    def _get_or_load_project(self, project_id: str) -> ProjectState | None:
         """获取项目状态——优先使用缓存，否则从DB加载"""
         if project_id in self._runtime_cache:
             return self._runtime_cache[project_id]
@@ -316,7 +332,7 @@ class Orchestrator:
 
     def create_project_from_nsef(self, nsef_path: str) -> ProjectState:
         """从NSEF文件（Æsir产出）创建叙事项目"""
-        with open(nsef_path, "r", encoding="utf-8") as f:
+        with open(nsef_path, encoding="utf-8") as f:
             package = NarrativeStatePackage.from_json(f.read())
 
         # 验证完整性
@@ -326,16 +342,6 @@ class Orchestrator:
 
         # 创建持久化项目
         pid = package.package_id
-        style_profile = {}
-        if package.style_fingerprint:
-            style_profile = {
-                "tone_distribution": package.style_fingerprint.tone_distribution,
-                "conflict_preference": package.style_fingerprint.conflict_preference,
-                "sentence_length_avg": package.style_fingerprint.sentence_length_avg,
-                "dialogue_ratio": package.style_fingerprint.dialogue_ratio,
-                "sensory_channel_bias": package.style_fingerprint.sensory_channel_bias,
-                "pov_preference": package.style_fingerprint.pov_preference,
-            }
 
         self.store.create_project(
             title=package.premise[:50],
@@ -353,11 +359,7 @@ class Orchestrator:
         )
 
         # 注入依赖
-        project.gates.set_dependencies(
-            kg=project.kg,
-            tom=project.tom,
-            reader=project.reader
-        )
+        project.gates.set_dependencies(kg=project.kg, tom=project.tom, reader=project.reader)
 
         # 初始化ToM引擎——从角色种子引导
         for char_seed in package.characters:
@@ -367,33 +369,31 @@ class Orchestrator:
                     proposition=prop,
                     value=belief_state.value,
                     confidence=1.0,
-                    source=BeliefSource.DIRECT_WITNESS
+                    source=BeliefSource.DIRECT_WITNESS,
                 )
             for goal in char_seed.goals:
-                char.active_goals.append(Goal(
-                    description=goal.goal,
-                    priority=goal.priority
-                ))
+                char.active_goals.append(Goal(description=goal.goal, priority=goal.priority))
 
         # 初始化知识图谱——注册角色和线索
         for char_seed in package.characters:
             project.kg.add_node(
-                char_seed.name, NodeType.CHARACTER,
-                properties={"role": char_seed.role}
+                char_seed.name, NodeType.CHARACTER, properties={"role": char_seed.role}
             )
         for thread in package.open_threads:
-            event_node = project.kg.add_node(
-                thread.description, NodeType.EVENT,
-                properties={"is_open_thread": True, "expected_resolution": thread.expected_resolution_type}
+            project.kg.add_node(
+                thread.description,
+                NodeType.EVENT,
+                properties={
+                    "is_open_thread": True,
+                    "expected_resolution": thread.expected_resolution_type,
+                },
             )
 
         # 注册秘密
         for char_seed in package.characters:
             for secret in char_seed.secrets:
                 project.tom.register_secret(
-                    secret.secret,
-                    known_to=secret.known_to,
-                    hidden_from=secret.hidden_from
+                    secret.secret, known_to=secret.known_to, hidden_from=secret.hidden_from
                 )
 
         # 设置冷却矩阵
@@ -412,8 +412,11 @@ class Orchestrator:
                     "updated_at": bs.updated_at_chapter,
                 }
             goals_data = [{"description": g.goal, "priority": g.priority} for g in char_seed.goals]
-            secrets_data = [{"secret": s.secret, "known_to": s.known_to, "hidden_from": s.hidden_from} for s in char_seed.secrets]
-            traits_data = {k: v for k, v in char_seed.personality_traits.items()}
+            secrets_data = [
+                {"secret": s.secret, "known_to": s.known_to, "hidden_from": s.hidden_from}
+                for s in char_seed.secrets
+            ]
+            traits_data = dict(char_seed.personality_traits)
 
             self.store.add_character(
                 project_id=pid,
@@ -458,7 +461,7 @@ class Orchestrator:
         self._runtime_cache[pid] = project
         return project
 
-    def get_project(self, project_id: str) -> Optional[ProjectState]:
+    def get_project(self, project_id: str) -> ProjectState | None:
         return self._get_or_load_project(project_id)
 
     # ═══════════════════════════════════════
@@ -466,8 +469,7 @@ class Orchestrator:
     # ═══════════════════════════════════════
 
     @trace_span("orchestrator.generate_chapter", attributes={"operation": "generate_chapter"})
-    def generate_chapter(self, project_id: str, prompt: str,
-                         word_target: int = 300) -> dict:
+    def generate_chapter(self, project_id: str, prompt: str, word_target: int = 300) -> dict:
         """LLM 生成章节草稿——输入灵感，输出200-500字正文
 
         Returns: {"text": str, "llm_used": bool}
@@ -478,6 +480,7 @@ class Orchestrator:
             raise ValueError(f"项目 {project_id} 不存在")
 
         from core.pydantic_ai_engine import get_pydantic_ai_engine
+
         engine = get_pydantic_ai_engine()
 
         context = {
@@ -500,7 +503,10 @@ class Orchestrator:
                 span.set_attribute("llm_used", bool(text))
             return {"text": text, "llm_used": bool(text)}
 
-    @trace_span("orchestrator.generate_scene_constraints", attributes={"operation": "generate_scene_constraints"})
+    @trace_span(
+        "orchestrator.generate_scene_constraints",
+        attributes={"operation": "generate_scene_constraints"},
+    )
     def generate_scene_constraints(self, project_id: str) -> dict:
         """生成场景的"写作约束"——给LLM的结构化输入"""
         project = self._get_or_load_project(project_id)
@@ -538,16 +544,12 @@ class Orchestrator:
                     "intensity": t.intensity,
                     "type": t.type.value,
                     "suggestion": t.suggestion,
-                    "involved": t.involved_characters
+                    "involved": t.involved_characters,
                 }
                 for t in hot_tensions
             ],
             "character_tendencies": [
-                {
-                    "character": t.character_id,
-                    "action": t.action,
-                    "strength": t.strength
-                }
+                {"character": t.character_id, "action": t.action, "strength": t.strength}
                 for t in tendencies
             ],
             "reader_state": reader_state,
@@ -568,16 +570,12 @@ class Orchestrator:
                     "intensity": t.intensity,
                     "type": t.type.value,
                     "suggestion": t.suggestion,
-                    "involved": t.involved_characters
+                    "involved": t.involved_characters,
                 }
                 for t in hot_tensions
             ],
             "character_tendencies": [
-                {
-                    "character": t.character_id,
-                    "action": t.action,
-                    "strength": t.strength
-                }
+                {"character": t.character_id, "action": t.action, "strength": t.strength}
                 for t in tendencies
             ],
             "reader_state": reader_state,
@@ -592,17 +590,14 @@ class Orchestrator:
             raise ValueError(f"项目 {project_id} 不存在")
 
         # 执行生成前门禁
-        results = project.gates.pre_generation_check(
-            text,
-            context={}
-        )
+        results = project.gates.pre_generation_check(text, context={})
 
         has_block = any(r.level == GateLevel.BLOCK for r in results)
 
         return {
             "can_display": not has_block,
             "gate_results": [r.to_dict() for r in results],
-            "blocked": has_block
+            "blocked": has_block,
         }
 
     @trace_span("orchestrator.submit_chapter", attributes={"operation": "submit_chapter"})
@@ -619,21 +614,27 @@ class Orchestrator:
         first_line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
         chapter_title = first_line[:60] if first_line else f"第{chapter_num}章"
 
-        project.chapters.append(ChapterInfo(
-            chapter_number=chapter_num,
-            title=chapter_title,
-            text=text,
-        ))
+        project.chapters.append(
+            ChapterInfo(
+                chapter_number=chapter_num,
+                title=chapter_title,
+                text=text,
+            )
+        )
 
         # 更新读者模型
-        with trace_context("reader_model.update", {"project_id": project_id, "chapter": chapter_num}):
+        with trace_context(
+            "reader_model.update", {"project_id": project_id, "chapter": chapter_num}
+        ):
             project.reader.update_from_text(text, project.current_chapter)
-        with trace_context("reader_model.evaluate", {"project_id": project_id, "chapter": chapter_num}):
-            transport_score = project.reader.evaluate_transportation(text)
+        with trace_context(
+            "reader_model.evaluate", {"project_id": project_id, "chapter": chapter_num}
+        ):
+            project.reader.evaluate_transportation(text)
 
         # 知识图谱提交通道
         with trace_kg_operation(project_id, "commit_chapter_snapshot") as span:
-            snapshot = project.kg.commit_chapter_snapshot()
+            project.kg.commit_chapter_snapshot()
             if span:
                 span.set_attribute("snapshot_chapter", chapter_num)
 
@@ -645,13 +646,14 @@ class Orchestrator:
         project.cooldown.advance_time(1)
 
         # 全量审计（G6-G10）
-        open_threads_data = []
-        for n in project.kg.nodes.values():
-            if n.type == NodeType.EVENT and n.properties.get("is_open_thread"):
-                open_threads_data.append({
-                    "id": n.id,
-                    "description": n.name,
-                })
+        open_threads_data = [
+            {
+                "id": n.id,
+                "description": n.name,
+            }
+            for n in project.kg.nodes.values()
+            if n.type == NodeType.EVENT and n.properties.get("is_open_thread")
+        ]
 
         gate_ids = ["G6", "G7", "G8", "G9", "G10"]
         with trace_gate_audit(project_id, chapter_num, gate_ids) as span:
@@ -661,12 +663,8 @@ class Orchestrator:
                     "open_threads": open_threads_data,
                 },
                 genre_contract={"required_scenes": []},
-                reader_context={
-                    "new_characters": 0,
-                    "new_locations": 0,
-                    "pov_switches": 0
-                },
-                matrix_state={"recent_patterns": project.cooldown.usage_history}
+                reader_context={"new_characters": 0, "new_locations": 0, "pov_switches": 0},
+                matrix_state={"recent_patterns": project.cooldown.usage_history},
             )
             if span:
                 span.set_attribute("overall_score", report.overall_score)
@@ -675,7 +673,9 @@ class Orchestrator:
         project.audit_reports.append(report)
 
         # ── #12 跨章一致性检测 ──
-        with trace_context("cross_chapter_consistency", {"project_id": project_id, "chapter": chapter_num}):
+        with trace_context(
+            "cross_chapter_consistency", {"project_id": project_id, "chapter": chapter_num}
+        ):
             cross_chapter = self.check_cross_chapter_consistency(project_id, text)
 
         # 持久化章节
@@ -723,7 +723,9 @@ class Orchestrator:
                 beliefs_data[prop] = {
                     "value": belief.value,
                     "confidence": belief.confidence,
-                    "source": belief.source.value if hasattr(belief.source, "value") else str(belief.source),
+                    "source": belief.source.value
+                    if hasattr(belief.source, "value")
+                    else str(belief.source),
                     "is_erroneous": belief.is_erroneous,
                     "updated_at": belief.updated_at,
                 }
@@ -782,8 +784,7 @@ class Orchestrator:
         n_world = self._persist_world_elements(project)
         return {"characters": n_chars, "world_elements_created": n_world}
 
-    def check_cross_chapter_consistency(self, project_id: str,
-                                        current_text: str) -> list[dict]:
+    def check_cross_chapter_consistency(self, project_id: str, current_text: str) -> list[dict]:
         """#12: 当前章与历史章的一致性检测
 
         检测三类矛盾：
@@ -810,14 +811,16 @@ class Orchestrator:
                 past_facts = {(f.subject, f.predicate): f.obj for f in past.facts}
                 for key, cur_val in current_facts.items():
                     if key in past_facts and past_facts[key] != cur_val:
-                        conflicts.append({
-                            "type": "fact_contradiction",
-                            "severity": "BLOCK",
-                            "detail": f"{key[0]}的{key[1]}：第{ch.number}章为 {past_facts[key]}，"
-                                      f"第{chapter_num}章变为 {cur_val}，且无转变说明",
-                            "current_chapter": chapter_num,
-                            "conflict_chapter": ch.number,
-                        })
+                        conflicts.append(
+                            {
+                                "type": "fact_contradiction",
+                                "severity": "BLOCK",
+                                "detail": f"{key[0]}的{key[1]}：第{ch.number}章为 {past_facts[key]}，"
+                                f"第{chapter_num}章变为 {cur_val}，且无转变说明",
+                                "current_chapter": chapter_num,
+                                "conflict_chapter": ch.number,
+                            }
+                        )
 
         # 2) 身份变化无解释（当前章 identity_changes 缺解释且角色曾出场）
         for change in current.identity_changes:
@@ -827,31 +830,34 @@ class Orchestrator:
                     for ch in history
                 )
                 if char_seen_before:
-                    conflicts.append({
-                        "type": "identity_shift_unexplained",
-                        "severity": "WARN",
-                        "detail": f"{change['character']}的{change['property']}变为「{change['new_value']}」，"
-                                  f"历史章节曾出场但本次变化无因果说明",
-                        "current_chapter": chapter_num,
-                        "conflict_chapter": None,
-                    })
+                    conflicts.append(
+                        {
+                            "type": "identity_shift_unexplained",
+                            "severity": "WARN",
+                            "detail": f"{change['character']}的{change['property']}变为「{change['new_value']}」，"
+                            f"历史章节曾出场但本次变化无因果说明",
+                            "current_chapter": chapter_num,
+                            "conflict_chapter": None,
+                        }
+                    )
 
         # 3) 信念冲突——当前章文本断言 X，但某角色 ToM 信念为非 X
         #    （启发式：检查高频角色名的信念命题是否被直接否定）
         project = self._get_or_load_project(project_id)
         if project:
-            import re as _re
             for char in project.tom.get_all_characters():
                 for prop, belief in list(char.world_beliefs.items())[:10]:
                     if belief.value is True and current_text.count("不" + prop[:4]):
-                        conflicts.append({
-                            "type": "belief_contradiction",
-                            "severity": "WARN",
-                            "detail": f"第{chapter_num}章文本疑似否定「{prop}」，"
-                                      f"与 {char.name} 的既有信念冲突",
-                            "current_chapter": chapter_num,
-                            "conflict_chapter": belief.updated_at or None,
-                        })
+                        conflicts.append(
+                            {
+                                "type": "belief_contradiction",
+                                "severity": "WARN",
+                                "detail": f"第{chapter_num}章文本疑似否定「{prop}」，"
+                                f"与 {char.name} 的既有信念冲突",
+                                "current_chapter": chapter_num,
+                                "conflict_chapter": belief.updated_at or None,
+                            }
+                        )
 
         return conflicts
 
@@ -865,9 +871,9 @@ class Orchestrator:
     # 假设推演（#15）
     # ═══════════════════════════════════════
 
-    def simulate_hypothesis(self, project_id: str, hypothesis: str,
-                           belief_changes: list[dict],
-                           branch_count: int = 3) -> dict:
+    def simulate_hypothesis(
+        self, project_id: str, hypothesis: str, belief_changes: list[dict], branch_count: int = 3
+    ) -> dict:
         """#15: "如果…会怎样"推演
 
         流程：克隆项目状态 → 应用信念变更 → 检测新张力 →
@@ -886,9 +892,11 @@ class Orchestrator:
         -------
         dict: {hypothesis, tensions, branches, applied_beliefs}
         """
-        @trace_span("orchestrator.simulate_hypothesis", attributes={"operation": "simulate_hypothesis"})
+
+        @trace_span(
+            "orchestrator.simulate_hypothesis", attributes={"operation": "simulate_hypothesis"}
+        )
         def _run_simulation():
-            import copy
             project = self._get_or_load_project(project_id)
             if not project:
                 raise ValueError(f"项目 {project_id} 不存在")
@@ -898,7 +906,10 @@ class Orchestrator:
             sim_tom = TheoryOfMindEngine()
             for cid, cdata in tom_snapshot["characters"].items():
                 sim_char = sim_tom.add_character(cdata.get("name", cid), cid)
-                from tom_engine import Belief as _B, BeliefSource as _S, Goal as _G
+                from tom_engine import Belief as _B
+                from tom_engine import BeliefSource as _S
+                from tom_engine import Goal as _G
+
                 for prop, b in (cdata.get("world_beliefs") or {}).items():
                     sim_char.world_beliefs[prop] = _B(
                         proposition=prop,
@@ -906,7 +917,7 @@ class Orchestrator:
                         confidence=b.get("confidence", 1.0),
                         source=_S(b.get("source", "目击")),
                     )
-                for g in (cdata.get("active_goals") or []):
+                for g in cdata.get("active_goals") or []:
                     sim_char.active_goals.append(
                         _G(description=g if isinstance(g, str) else g.get("description", ""))
                     )
@@ -920,10 +931,14 @@ class Orchestrator:
                 prop = change.get("proposition", "")
                 if not prop:
                     continue
-                from tom_engine import Belief as _B, BeliefSource as _S
+                from tom_engine import Belief as _B
+                from tom_engine import BeliefSource as _S
+
                 char.world_beliefs[prop] = _B(
-                    proposition=prop, value=change.get("value", True),
-                    confidence=1.0, source=_S.DIRECT_WITNESS,
+                    proposition=prop,
+                    value=change.get("value", True),
+                    confidence=1.0,
+                    source=_S.DIRECT_WITNESS,
                 )
                 applied.append(change)
 
@@ -933,40 +948,55 @@ class Orchestrator:
                 if span:
                     span.set_attribute("tension_count", len(tensions))
             tension_data = [
-                {"description": t.description, "intensity": t.intensity,
-                 "type": t.type.value, "suggestion": t.suggestion}
+                {
+                    "description": t.description,
+                    "intensity": t.intensity,
+                    "type": t.type.value,
+                    "suggestion": t.suggestion,
+                }
                 for t in sorted(tensions, key=lambda x: x.intensity, reverse=True)[:5]
             ]
 
             # LLM 生成分支（使用 Pydantic AI）
             from core.pydantic_ai_engine import get_pydantic_ai_engine
+
             engine = get_pydantic_ai_engine()
             branches = []
             if engine.available():
-                sim_result = engine.simulate_hypothesis(hypothesis, belief_changes, {
-                    "project_id": project_id,
-                    "tom_snapshot": tom_snapshot,
-                }, branch_count)
+                sim_result = engine.simulate_hypothesis(
+                    hypothesis,
+                    belief_changes,
+                    {
+                        "project_id": project_id,
+                        "tom_snapshot": tom_snapshot,
+                    },
+                    branch_count,
+                )
                 branches = sim_result.get("branches", [])
 
             # 规则降级分支（张力驱动）
             if not branches:
                 for i, t in enumerate(tension_data[:branch_count], 1):
-                    branches.append({
-                        "title": f"张力路线{i}",
-                        "summary": t["suggestion"] or t["description"][:60],
-                        "key_event": t["description"][:30],
-                    })
+                    branches.append(
+                        {
+                            "title": f"张力路线{i}",
+                            "summary": t["suggestion"] or t["description"][:60],
+                            "key_event": t["description"][:30],
+                        }
+                    )
                 if not branches:
-                    branches = [{
-                        "title": "平稳推进",
-                        "summary": "信念变更暂未产生新张力，主线可按原节奏推进",
-                        "key_event": hypothesis[:30],
-                    }]
+                    branches = [
+                        {
+                            "title": "平稳推进",
+                            "summary": "信念变更暂未产生新张力，主线可按原节奏推进",
+                            "key_event": hypothesis[:30],
+                        }
+                    ]
 
             llm_used = False
             try:
                 from core.llm_engine import get_llm_engine
+
                 llm_used = bool(get_llm_engine().available())
             except Exception:
                 llm_used = engine.available() if "engine" in dir() else False
@@ -985,8 +1015,7 @@ class Orchestrator:
     # ═══════════════════════════════════════
 
     @trace_span("orchestrator.diverge_fragments", attributes={"operation": "diverge_fragments"})
-    def diverge_fragments(self, fragments: list[str],
-                          count: int = 5) -> dict:
+    def diverge_fragments(self, fragments: list[str], count: int = 5) -> dict:
         """#16: 3-5 个碎片画面 → N 条世界线预览
 
         每条世界线随机组合 类型×结构×冲突，LLM 织入碎片生成
@@ -997,49 +1026,49 @@ class Orchestrator:
             raise ValueError("至少需要 2 个碎片画面")
 
         from core.llm_engine import get_llm_engine
+
         llm = get_llm_engine()
 
-        import random
-        rng = random.Random(len("".join(fragments)))  # 碎片确定性种子
         worldlines: list[dict] = []
         llm_wl: list[dict] = []
 
         if llm.available():
-            import json as _json, re as _re
+            import json as _json
+            import re as _re
+
             prompt = (
                 f"碎片画面：{fragments}\n"
                 f"请基于这些碎片，构思一条完整的小说世界线。"
                 f"输出 JSON 对象：{{"
-                f"\"genre\": \"类型\", "
-                f"\"structure\": \"叙事结构\", "
-                f"\"conflict_core\": \"核心冲突(≤20字)\", "
-                f"\"beats\": [\"节拍1\", \"节拍2\", \"节拍3\", \"节拍4\", \"节拍5\"], "
-                f"\"opening\": \"开头段(80-120字，必须是正文的口吻)\""
+                f'"genre": "类型", '
+                f'"structure": "叙事结构", '
+                f'"conflict_core": "核心冲突(≤20字)", '
+                f'"beats": ["节拍1", "节拍2", "节拍3", "节拍4", "节拍5"], '
+                f'"opening": "开头段(80-120字，必须是正文的口吻)"'
                 f"}}。碎片必须自然融入。只输出 JSON。"
             )
             for i in range(count):
                 raw = llm.generate_chapter(prompt, {"characters": []}, word_target=500)
                 wl = None
                 if raw:
-                    m = _re.search(r'\{.*\}', raw, _re.DOTALL)
+                    m = _re.search(r"\{.*\}", raw, _re.DOTALL)
                     if m:
                         try:
                             wl = _json.loads(m.group(0))
                         except Exception:
                             wl = None
                 if wl and wl.get("beats"):
-                    wl["id"] = f"wl_{i+1}"
+                    wl["id"] = f"wl_{i + 1}"
                     llm_wl.append(wl)
 
         # 使用 Pydantic AI 进行碎片发散（如果 LLM 不可用或结果不足，回退到模板）
         from core.pydantic_ai_engine import get_pydantic_ai_engine
+
         engine = get_pydantic_ai_engine()
         if engine.available() and len(llm_wl) < count:
             try:
                 div_result = engine.diverge_fragments(fragments, count - len(llm_wl))
-                for wl in div_result.get("worldlines", []):
-                    if wl.get("beats"):
-                        llm_wl.append(wl)
+                llm_wl.extend(wl for wl in div_result.get("worldlines", []) if wl.get("beats"))
             except Exception:
                 pass
 
@@ -1063,17 +1092,24 @@ class Orchestrator:
                     f"激化：围绕{c[:4]}，{fragments[1 % len(fragments)][:20]}浮现隐情",
                     f"转折：第三个碎片改写一切——{fragments[2 % len(fragments)][:20]}",
                     f"危机：{c[:4]}到达顶点，抉择时刻",
-                    f"收束：碎片间的因果链闭合，留一个余韵钩子",
+                    "收束：碎片间的因果链闭合，留一个余韵钩子",
                 ]
-                worldlines.append({
-                    "id": f"wl_{len(worldlines)+1}",
-                    "genre": g, "structure": s,
-                    "conflict_core": c,
-                    "beats": beats,
-                    "opening": f"{fragments[0]}。这个画面在他脑海里挥之不去，而他还不知道，一切要从这里开始。",
-                })
+                worldlines.append(
+                    {
+                        "id": f"wl_{len(worldlines) + 1}",
+                        "genre": g,
+                        "structure": s,
+                        "conflict_core": c,
+                        "beats": beats,
+                        "opening": f"{fragments[0]}。这个画面在他脑海里挥之不去，而他还不知道，一切要从这里开始。",
+                    }
+                )
             i += 1
-        return {"worldlines": worldlines[:count], "llm_used": bool(engine.available()), "fragment_count": len(fragments)}
+        return {
+            "worldlines": worldlines[:count],
+            "llm_used": bool(engine.available()),
+            "fragment_count": len(fragments),
+        }
 
     # ═══════════════════════════════════════
     # 心智网格数据
@@ -1090,14 +1126,16 @@ class Orchestrator:
         # 转换 characters 为 list 格式（兼容前端）
         chars_list = []
         for cid, cdata in snapshot["characters"].items():
-            chars_list.append({
-                "id": cid,
-                "name": cdata.get("name", cid),
-                "world_beliefs": cdata.get("world_beliefs", {}),
-                "about_others": cdata.get("about_others", {}),
-                "active_goals": cdata.get("active_goals", []),
-                "secret_count": cdata.get("secret_count", 0),
-            })
+            chars_list.append(
+                {
+                    "id": cid,
+                    "name": cdata.get("name", cid),
+                    "world_beliefs": cdata.get("world_beliefs", {}),
+                    "about_others": cdata.get("about_others", {}),
+                    "active_goals": cdata.get("active_goals", []),
+                    "secret_count": cdata.get("secret_count", 0),
+                }
+            )
 
         # 从知识图谱补充关系
         relationships = []
@@ -1107,12 +1145,14 @@ class Orchestrator:
                 src = project.kg.nodes.get(r.source)
                 tgt = project.kg.nodes.get(r.target)
                 if src and tgt:
-                    relationships.append({
-                        "source": src.name,
-                        "target": tgt.name,
-                        "type": r.type.value,
-                        "active": r.is_active
-                    })
+                    relationships.append(
+                        {
+                            "source": src.name,
+                            "target": tgt.name,
+                            "type": r.type.value,
+                            "active": r.is_active,
+                        }
+                    )
 
         return {
             "characters": chars_list,
@@ -1124,8 +1164,7 @@ class Orchestrator:
             "hot_patterns": project.cooldown.get_hot_patterns(0.5),
         }
 
-    def update_belief(self, project_id: str, character: str,
-                      proposition: str, value: bool | str):
+    def update_belief(self, project_id: str, character: str, proposition: str, value: bool | str):
         """通过心智网格编辑角色的信念状态——作者可以直接操作"""
         project = self._get_or_load_project(project_id)
         if not project:
@@ -1143,12 +1182,13 @@ class Orchestrator:
             old.is_erroneous = False
         else:
             from tom_engine import Belief
+
             char.world_beliefs[proposition] = Belief(
                 proposition=proposition,
                 value=value,
                 confidence=1.0,
                 source=BeliefSource.DIRECT_WITNESS,
-                updated_at=project.current_chapter
+                updated_at=project.current_chapter,
             )
 
         # 持久化信念变更
@@ -1177,15 +1217,15 @@ class Orchestrator:
     # 伏笔管理
     # ═══════════════════════════════════════
 
-    def add_foreshadowing(self, project_id: str, description: str,
-                          chapter_id: str = "") -> str:
+    def add_foreshadowing(self, project_id: str, description: str, chapter_id: str = "") -> str:
         """添加一个新的伏笔"""
         fo = self.store.add_foreshadowing(project_id, chapter_id, description)
         self._invalidate_cache(project_id)
         return fo.id
 
-    def resolve_foreshadowing(self, project_id: str, foreshadowing_id: str,
-                              resolved_chapter: str) -> Optional[Foreshadowing]:
+    def resolve_foreshadowing(
+        self, project_id: str, foreshadowing_id: str, resolved_chapter: str
+    ) -> Foreshadowing | None:
         """回收一个伏笔"""
         result = self.store.resolve_foreshadowing(foreshadowing_id, resolved_chapter)
         self._invalidate_cache(project_id)
@@ -1229,11 +1269,16 @@ class Orchestrator:
         self._invalidate_cache(project_id)
         return result
 
-    def add_character(self, project_id: str, name: str, role: str,
-                      traits: dict | None = None,
-                      beliefs: dict | None = None,
-                      goals: list | None = None,
-                      secrets: list | None = None) -> str:
+    def add_character(
+        self,
+        project_id: str,
+        name: str,
+        role: str,
+        traits: dict | None = None,
+        beliefs: dict | None = None,
+        goals: list | None = None,
+        secrets: list | None = None,
+    ) -> str:
         """添加角色到项目"""
         character = self.store.add_character(
             project_id=project_id,

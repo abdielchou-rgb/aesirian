@@ -9,12 +9,13 @@
 
 LLM 不可用时全部优雅降级为规则驱动，沿用项目「纯规则优先，LLM 增强」原则。
 """
+
 from __future__ import annotations
 
 import re
 import uuid
 from enum import Enum
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from pydantic import BaseModel, Field
 
@@ -26,7 +27,7 @@ if TYPE_CHECKING:  # 仅类型标注用；运行时在函数内延迟导入避�
 # ═══════════════════════════════════════════
 
 
-class DiffStatus(str, Enum):
+class DiffStatus(str, Enum):  # noqa: UP042  # StrEnum 需 3.11+，CI 矩阵含 3.10
     PENDING = "pending"
     ACCEPTED = "accepted"
     REJECTED = "rejected"
@@ -49,15 +50,15 @@ class Diff(BaseModel):
     def is_pending(self) -> bool:
         return self.status == DiffStatus.PENDING
 
-    def accept(self) -> "Diff":
+    def accept(self) -> Diff:
         self.status = DiffStatus.ACCEPTED
         return self
 
-    def reject(self) -> "Diff":
+    def reject(self) -> Diff:
         self.status = DiffStatus.REJECTED
         return self
 
-    def mark_conflicted(self) -> "Diff":
+    def mark_conflicted(self) -> Diff:
         self.status = DiffStatus.CONFLICTED
         return self
 
@@ -66,7 +67,7 @@ class CardEdit(BaseModel):
     """捕获用户在某张卡上的编辑。card 取值见 PROPAGATION_TABLE 键。"""
 
     card: str = Field(description="被编辑的卡：biographies/framework/chapters/sample")
-    index: Optional[int] = Field(default=None, description="list 卡内的目标下标；缺省=整卡/首项")
+    index: int | None = Field(default=None, description="list 卡内的目标下标；缺省=整卡/首项")
     field: str = Field(default="", description="被改字段名，如 lie / goal / summary / text")
     before: str = Field(default="", description="编辑前内容")
     after: str = Field(default="", description="编辑后内容")
@@ -112,11 +113,63 @@ CARD_LABELS = {
 # 规则驱动派生的文本启发式
 # ═══════════════════════════════════════════
 
-_POSITIVE_KWS = ("胜利", "发现", "成长", "获得", "成功", "和解", "突破", "救出", "夺回", "回到", "微笑", "握紧")
-_NEGATIVE_KWS = ("失败", "损失", "打击", "失去", "背叛", "死亡", "崩溃", "误会", "遗弃", "抛弃", "伤口", "刀")
+_POSITIVE_KWS = (
+    "胜利",
+    "发现",
+    "成长",
+    "获得",
+    "成功",
+    "和解",
+    "突破",
+    "救出",
+    "夺回",
+    "回到",
+    "微笑",
+    "握紧",
+)
+_NEGATIVE_KWS = (
+    "失败",
+    "损失",
+    "打击",
+    "失去",
+    "背叛",
+    "死亡",
+    "崩溃",
+    "误会",
+    "遗弃",
+    "抛弃",
+    "伤口",
+    "刀",
+)
 
-_TRAUMA_KWS = ("遗弃", "抛弃", "背叛", "失去", "死了", "被杀", "被骗", "被卖", "挨打", "丢下", "丢弃", "离开", "逃", "饿")
-_TRAUMA_MARKERS = ("小时候", "那年", "当年", "曾经", "七岁", "八岁", "九岁", "幼年", "童年", "那天夜里")
+_TRAUMA_KWS = (
+    "遗弃",
+    "抛弃",
+    "背叛",
+    "失去",
+    "死了",
+    "被杀",
+    "被骗",
+    "被卖",
+    "挨打",
+    "丢下",
+    "丢弃",
+    "离开",
+    "逃",
+    "饿",
+)
+_TRAUMA_MARKERS = (
+    "小时候",
+    "那年",
+    "当年",
+    "曾经",
+    "七岁",
+    "八岁",
+    "九岁",
+    "幼年",
+    "童年",
+    "那天夜里",
+)
 
 _LIE_TEMPLATES = [
     (("背叛", "出卖", "骗"), "对人交心等于引刀自戕——先亮刀的人不会被捅"),
@@ -219,7 +272,10 @@ def _infer_voice_traits(text: str) -> list[str]:
             traits.append("中速叙事")
         else:
             traits.append("长句铺陈")
-    if sum(1 for s in sents if any(q in s for q in ("说", "道", "问", "答"))) / max(1, len(sents)) > 0.3:
+    if (
+        sum(1 for s in sents if any(q in s for q in ("说", "道", "问", "答"))) / max(1, len(sents))
+        > 0.3
+    ):
         traits.append("对话驱动")
     sensory_hits = sum(1 for w in ("冷", "热", "光", "暗", "颜色", "声音", "香", "痛") if w in text)
     if sensory_hits >= 3:
@@ -229,20 +285,24 @@ def _infer_voice_traits(text: str) -> list[str]:
     return traits
 
 
-def _default_framework_beats(want: str, lie: str, charge_turns: list[tuple[int, str]]) -> list[dict]:
+def _default_framework_beats(
+    want: str, lie: str, charge_turns: list[tuple[int, str]]
+) -> list[dict]:
     """把文本中的正负电荷翻转压成框架 beats；不足 3 个用三段模板补齐。"""
     beats: list[dict] = []
     seen = 0
     for idx, turn in charge_turns:
-        beats.append({
-            "index": idx,
-            "goal": f"碾过主角的谎言：{lie}",
-            "value_turn": turn,
-            "tension_source": "信念冲突",
-        })
+        beats.append(
+            {
+                "index": idx,
+                "goal": f"碾过主角的谎言：{lie}",
+                "value_turn": turn,
+                "tension_source": "信念冲突",
+            }
+        )
         seen += 1
     # 兜底三段模板：起因(负) → 深化(负) → 翻转(正)
-    for i, (goal_tpl, turn) in enumerate(
+    for _i, (goal_tpl, turn) in enumerate(
         (
             (f"把主角推进 want（{want}）与现状的裂缝", "正→负"),
             ("让 lie 以最痛的方式显形，逼主角重估代价", "负→负"),
@@ -251,7 +311,9 @@ def _default_framework_beats(want: str, lie: str, charge_turns: list[tuple[int, 
     ):
         if seen >= 3:
             break
-        beats.append({"index": seen + 1, "goal": goal_tpl, "value_turn": turn, "tension_source": "目标冲突"})
+        beats.append(
+            {"index": seen + 1, "goal": goal_tpl, "value_turn": turn, "tension_source": "目标冲突"}
+        )
         seen += 1
     return beats[:6]
 
@@ -260,10 +322,15 @@ def _default_framework_beats(want: str, lie: str, charge_turns: list[tuple[int, 
 # 阶段 A：正向推导（试样故事 → 四卡）
 # ═══════════════════════════════════════════
 
+
 def _rule_forward_derive(sample_text: str):
     """纯规则离线版：无 LLM 时也能产出结构完整的四卡。"""
     from core.four_cards import (
-        CharacterBiography, ChapterBeat, FrameworkBeat, FourCardProject, SampleStory,
+        ChapterBeat,
+        CharacterBiography,
+        FourCardProject,
+        FrameworkBeat,
+        SampleStory,
     )
 
     text = sample_text.strip()
@@ -281,21 +348,24 @@ def _rule_forward_derive(sample_text: str):
         if not buckets or len(buckets[-1]) >= 6:
             buckets.append([])
         buckets[-1].append(s)
-    for i, bucket in enumerate(buckets, start=1):
+    for _i, bucket in enumerate(buckets, start=1):
         summary = " ".join(bucket)[:60]
         charge_turns = [
-            _charge_of(bucket[j]) for j in range(len(bucket))
+            _charge_of(bucket[j])
+            for j in range(len(bucket))
             if j and _charge_of(bucket[j]) != _charge_of(bucket[j - 1])
         ]
         # 段内若正负混存则记一次翻转，否则按末句电荷定方向
         turn = "正→负" if not charge_turns else "负→正"
         if charge_turns and charge_turns[-1] == "positive":
             turn = "负→正"
-        chapters.append(ChapterBeat(
-            summary=summary,
-            value_turn=turn,
-            causally_linked=any(_has_causal_marker(s) for s in bucket),
-        ))
+        chapters.append(
+            ChapterBeat(
+                summary=summary,
+                value_turn=turn,
+                causally_linked=any(_has_causal_marker(s) for s in bucket),
+            )
+        )
 
     # 框架 beats：全篇电荷翻转点（句子级）→ 张力轨迹
     charge_turns_all: list[tuple[int, str]] = []
@@ -303,7 +373,9 @@ def _rule_forward_derive(sample_text: str):
     for j, s in enumerate(sents[1:], start=2):
         cur = _charge_of(s)
         if prev_charge != "neutral" and cur != "neutral" and cur != prev_charge:
-            charge_turns_all.append((j, f"{prev_charge}→{cur}".replace("positive", "正").replace("negative", "负")))
+            charge_turns_all.append(
+                (j, f"{prev_charge}→{cur}".replace("positive", "正").replace("negative", "负"))
+            )
         prev_charge = cur
     fw = _default_framework_beats(want, lie, charge_turns_all)
     framework = [FrameworkBeat(**b) for b in fw]
@@ -311,18 +383,26 @@ def _rule_forward_derive(sample_text: str):
     # 用 reader_model 给试样打沉浸度分
     try:
         from core.reader_model import ReaderModelSimulator
+
         score = ReaderModelSimulator().evaluate_transportation(text).overall
     except Exception:
         score = 0.0
 
-    project = FourCardProject(
-        biographies=[CharacterBiography(name=name, want=want, wound=wound, lie=lie,
-                                        change=change, voice_traits=_infer_voice_traits(text))],
+    return FourCardProject(
+        biographies=[
+            CharacterBiography(
+                name=name,
+                want=want,
+                wound=wound,
+                lie=lie,
+                change=change,
+                voice_traits=_infer_voice_traits(text),
+            )
+        ],
         framework=framework,
         chapters=chapters,
         sample=SampleStory(text=text, transportation_score=round(score, 1)),
     )
-    return project
 
 
 def _llm_forward_derive(sample_text: str):
@@ -356,12 +436,14 @@ def _llm_forward_derive(sample_text: str):
         project: FourCardProject = result.output
         # 补上沉浸度评分（规则层保证非空）
         from core.reader_model import ReaderModelSimulator
+
         score = ReaderModelSimulator().evaluate_transportation(sample_text).overall
         project.sample.text = sample_text
         project.sample.transportation_score = round(score, 1)
-        return project
     except Exception:
         return None
+    else:
+        return project
 
 
 def forward_derive(sample_text: str):
@@ -372,6 +454,7 @@ def forward_derive(sample_text: str):
     """
     if not sample_text or not sample_text.strip():
         from core.four_cards import FourCardProject
+
         return FourCardProject.empty()
     project = _llm_forward_derive(sample_text)
     if project is not None:
@@ -381,14 +464,17 @@ def forward_derive(sample_text: str):
     return _rule_forward_derive(sample_text)
 
 
-def _drop_shell_biographies(project) -> "FourCardProject":
+def _drop_shell_biographies(project) -> FourCardProject:
     """收敛派生人物卡：剔除空壳角色（只有 name/voice 而无 want/wound/lie/change），
     且派生阶段聚焦核心主角（当前 UI/编辑入口为单主角形态；多角色演示由种子
     demo_luoyang_project.json 手工维护，不走 forward_derive）。"""
-    from core.four_cards import FourCardProject
     filled = [
-        b for b in project.biographies
-        if (b.want or "").strip() or (b.wound or "").strip() or (b.lie or "").strip() or (b.change or "").strip()
+        b
+        for b in project.biographies
+        if (b.want or "").strip()
+        or (b.wound or "").strip()
+        or (b.lie or "").strip()
+        or (b.change or "").strip()
     ]
     project.biographies = filled[:1]
     return project
@@ -398,14 +484,21 @@ def _drop_shell_biographies(project) -> "FourCardProject":
 # 阶段 B：反向提案（编辑任意卡 → diff）
 # ═══════════════════════════════════════════
 
+
 def _edit_field_label(card: str, field: str) -> str:
     """把 {card}.{field} 转成人类可读的卡片字段说明。"""
     card_label = CARD_LABELS.get(card, card)
     field_label = {
-        "name": "角色名", "want": "欲望 want", "wound": "创伤 wound",
-        "lie": "错误信念 lie", "change": "转变 change",
-        "goal": "张力目标 goal", "value_turn": "价值翻转 value_turn",
-        "tension_source": "张力来源", "summary": "剧情摘要", "text": "正文",
+        "name": "角色名",
+        "want": "欲望 want",
+        "wound": "创伤 wound",
+        "lie": "错误信念 lie",
+        "change": "转变 change",
+        "goal": "张力目标 goal",
+        "value_turn": "价值翻转 value_turn",
+        "tension_source": "张力来源",
+        "summary": "剧情摘要",
+        "text": "正文",
         "voice_traits": "口吻标记",
     }.get(field, field)
     return f"{card_label}·{field_label}"
@@ -417,22 +510,27 @@ def _rule_propose_diff(edit: CardEdit, project) -> list[Diff]:
     if not rule:
         return []
     diffs: list[Diff] = []
-    targets = rule["targets"]
 
     def make(target: str, field: str, after: str, rationale: str) -> None:
-        diffs.append(Diff(
-            target_card=target,
-            field=field,
-            before=edit.after if False else "",
-            after=after,
-            rationale=rationale,
-            source_card=edit.card,
-        ))
+        diffs.append(
+            Diff(
+                target_card=target,
+                field=field,
+                before=edit.after if False else "",
+                after=after,
+                rationale=rationale,
+                source_card=edit.card,
+            )
+        )
 
     # 找出（可能多个人物中）受影响的锚：缺省取首个 biography
     bio = None
     if project.biographies:
-        bio = project.biographies[edit.index] if edit.index is not None and edit.index < len(project.biographies) else project.biographies[0]
+        bio = (
+            project.biographies[edit.index]
+            if edit.index is not None and edit.index < len(project.biographies)
+            else project.biographies[0]
+        )
 
     if edit.card == "biographies" and bio is not None:
         # 锚级变更：全量重算框架 + 章节 + 试样
@@ -441,38 +539,63 @@ def _rule_propose_diff(edit: CardEdit, project) -> list[Diff]:
                 f"人物小传·{edit.field} 变更触发锚级重算："
                 f"lie/wound/want 因果链变化将改变每个张力 beat 要碾过的对象。"
             )
-            for i, beat in enumerate(project.framework):
+            for i, _beat in enumerate(project.framework):
                 if i < 3:
-                    make("framework", "goal", f"碾过主角更新后的谎言：{bio.lie or edit.after}",
-                         rationale)
-            make("chapters", "summary",
-                 "（建议）重排章节翻转：让 lie 的新版本以更痛的方式显形",
-                 rationale)
-            make("sample", "text",
-                 f"（建议）改写试样场景：把主角放进 want「{bio.want or edit.after}」与 lie「{bio.lie or edit.after}」碰撞的处境",
-                 rationale)
+                    make(
+                        "framework",
+                        "goal",
+                        f"碾过主角更新后的谎言：{bio.lie or edit.after}",
+                        rationale,
+                    )
+            make(
+                "chapters",
+                "summary",
+                "（建议）重排章节翻转：让 lie 的新版本以更痛的方式显形",
+                rationale,
+            )
+            make(
+                "sample",
+                "text",
+                f"（建议）改写试样场景：把主角放进 want「{bio.want or edit.after}」与 lie「{bio.lie or edit.after}」碰撞的处境",
+                rationale,
+            )
         elif edit.field == "name":
-            for i, beat in enumerate(project.framework):
+            for i, _beat in enumerate(project.framework):
                 if i < 2:
-                    make("framework", "goal", f"{edit.after}碾过主角的谎言：{bio.lie}",
-                         f"角色名更新为「{edit.after}」，同步框架 beat 主语。")
+                    make(
+                        "framework",
+                        "goal",
+                        f"{edit.after}碾过主角的谎言：{bio.lie}",
+                        f"角色名更新为「{edit.after}」，同步框架 beat 主语。",
+                    )
 
     elif edit.card == "framework":
         # 框架被改 → 提案改章节（张力轨迹变化影响翻转快照）
-        make("chapters", "value_turn", edit.after or "负→正",
-             f"框架 beat 的张力轨迹改为「{_edit_field_label('framework', edit.field)}」，"
-             f"对应章节的价值翻转快照需对齐。")
+        make(
+            "chapters",
+            "value_turn",
+            edit.after or "负→正",
+            f"框架 beat 的张力轨迹改为「{_edit_field_label('framework', edit.field)}」，"
+            f"对应章节的价值翻转快照需对齐。",
+        )
 
     elif edit.card == "chapters":
         # 章节被改 → 提案改框架
-        make("framework", "goal", f"（建议）该章张力目标改为匹配新剧情：{edit.after or edit.before}",
-             "章节剧情变更改变了该处实际碾过的 wound/lie，框架张力目标需对齐。")
+        make(
+            "framework",
+            "goal",
+            f"（建议）该章张力目标改为匹配新剧情：{edit.after or edit.before}",
+            "章节剧情变更改变了该处实际碾过的 wound/lie，框架张力目标需对齐。",
+        )
 
-    elif edit.card == "sample":
+    elif edit.card == "sample" and bio is not None:
         # 试样故事被改 → 反向提案改小传（want/wound/lie 校准）
-        if bio is not None:
-            make("biographies", "want", f"（建议校准）{edit.after or '试样呈现的新欲望'}",
-                 "试样故事改了，说明 pilot 验证出的 want 与人物小传锚不一致，需校准。")
+        make(
+            "biographies",
+            "want",
+            f"（建议校准）{edit.after or '试样呈现的新欲望'}",
+            "试样故事改了，说明 pilot 验证出的 want 与人物小传锚不一致，需校准。",
+        )
     return diffs
 
 
@@ -505,6 +628,7 @@ def _llm_propose_diff(edit: CardEdit, project) -> list[Diff] | None:
     if not raw:
         return None
     import json
+
     try:
         m = re.search(r"\[.*\]", raw, re.DOTALL)
         if not m:
@@ -516,14 +640,16 @@ def _llm_propose_diff(edit: CardEdit, project) -> list[Diff] | None:
     for it in items:
         if not isinstance(it, dict) or "target_card" not in it:
             continue
-        diffs.append(Diff(
-            target_card=str(it.get("target_card", "")),
-            field=str(it.get("field", "")),
-            before=str(it.get("before", "")),
-            after=str(it.get("after", "")),
-            rationale=str(it.get("rationale", "")),
-            source_card=edit.card,
-        ))
+        diffs.append(
+            Diff(
+                target_card=str(it.get("target_card", "")),
+                field=str(it.get("field", "")),
+                before=str(it.get("before", "")),
+                after=str(it.get("after", "")),
+                rationale=str(it.get("rationale", "")),
+                source_card=edit.card,
+            )
+        )
     return diffs or None
 
 

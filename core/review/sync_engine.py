@@ -13,12 +13,14 @@ SyncEngine：对 ReviewState（draft/framework/chapters/characters 四视图）�
 3. 所有推断以"提案（changes + conflicts）"形式浮出，由上层接受/拒绝后落地，
    引擎自身不直接改写持久层。
 """
+
 from __future__ import annotations
 
 import difflib
 import re
 import uuid
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from core.review.models import ReviewState
@@ -30,16 +32,51 @@ except Exception:  # pragma: no cover
     BaseModel = object  # type: ignore
 
 VIEWS = ("draft", "framework", "chapters", "characters")
-TARGETS = {"draft": ("framework", "chapters", "characters"),
-           "framework": ("draft",),
-           "chapters": ("draft",),
-           "characters": ("draft",)}
+TARGETS = {
+    "draft": ("framework", "chapters", "characters"),
+    "framework": ("draft",),
+    "chapters": ("draft",),
+    "characters": ("draft",),
+}
 
 _SENT_SPLIT = re.compile(r"(?<=[。！？!?…\n])")
 _SPEAKER = re.compile(r"([\u4e00-\u9fa5A-Za-z]{1,6})[说喊道问答嚷叫]")
-_ACTOR = re.compile(r"([\u4e00-\u9fa5A-Za-z]{2,4})(?=(?:把|将|被|向|对|与|和|从|在|望|看|听|拿|放下|推开))")
-_TURN_DOWN = ("却", "但是", "但", "突然", "然而", "反而", "拒绝", "失败", "失去", "受伤", "逃离", "放弃", "背叛", "死", "坠")
-_TURN_UP = ("终于", "成功", "获", "救", "觉醒", "面对", "放下", "突破", "胜利", "归来", "重生", "原谅", "真相", "钥匙")
+_ACTOR = re.compile(
+    r"([\u4e00-\u9fa5A-Za-z]{2,4})(?=(?:把|将|被|向|对|与|和|从|在|望|看|听|拿|放下|推开))"
+)
+_TURN_DOWN = (
+    "却",
+    "但是",
+    "但",
+    "突然",
+    "然而",
+    "反而",
+    "拒绝",
+    "失败",
+    "失去",
+    "受伤",
+    "逃离",
+    "放弃",
+    "背叛",
+    "死",
+    "坠",
+)
+_TURN_UP = (
+    "终于",
+    "成功",
+    "获",
+    "救",
+    "觉醒",
+    "面对",
+    "放下",
+    "突破",
+    "胜利",
+    "归来",
+    "重生",
+    "原谅",
+    "真相",
+    "钥匙",
+)
 
 
 def _split_sentences(text: str) -> list[str]:
@@ -59,7 +96,7 @@ def _short_id(prefix: str) -> str:
     return f"{prefix}_{uuid.uuid4().hex[:10]}"
 
 
-def _name_from_sentence(sentence: str) -> Optional[str]:
+def _name_from_sentence(sentence: str) -> str | None:
     m = _SPEAKER.search(sentence)
     if m and m.group(1) not in ("他说", "她说", "他们说", "这个", "那个"):
         return m.group(1)
@@ -75,12 +112,14 @@ def _sentences_text(text: str) -> str:
 class SyncEngine:
     """四视图双向同步引擎。"""
 
-    def __init__(self,
-                 llm: Optional[Any] = None,
-                 tom: Optional[Any] = None,
-                 kg: Optional[Any] = None,
-                 style: Optional[Any] = None,
-                 oracle: Optional[Callable[[str], Optional[str]]] = None):
+    def __init__(
+        self,
+        llm: Any | None = None,
+        tom: Any | None = None,
+        kg: Any | None = None,
+        style: Any | None = None,
+        oracle: Callable[[str], str | None] | None = None,
+    ):
         self.llm = llm
         self.tom = tom
         self.kg = kg
@@ -89,9 +128,15 @@ class SyncEngine:
 
     # ─────────── 主流程 ───────────
 
-    def sync(self, project_id: str, source: str, content: dict,
-             mode: str = "realtime", options: dict | None = None,
-             state: Optional[ReviewState] = None) -> dict:
+    def sync(
+        self,
+        project_id: str,
+        source: str,
+        content: dict,
+        mode: str = "realtime",
+        options: dict | None = None,
+        state: ReviewState | None = None,
+    ) -> dict:
         """执行同步，返回 {status, changes, conflicts, summary, sync_id}。
 
         state: 四视图当前状态（ReviewState）。引擎内部使用 dict 形态，
@@ -139,8 +184,7 @@ class SyncEngine:
 
     # ─────────── 路由 ───────────
 
-    def _dispatch(self, source: str, current: Any, content: dict,
-                  target_views: list[str]) -> dict:
+    def _dispatch(self, source: str, current: Any, content: dict, target_views: list[str]) -> dict:
         if source == "draft":
             return self._sync_from_draft(current, content, target_views)
         if source == "framework":
@@ -196,8 +240,9 @@ class SyncEngine:
         removed = [r for r in removed if _sentences_text(r)]
         return added, removed
 
-    def _infer_framework_changes(self, current: Any, added: list[str],
-                                 removed: list[str]) -> Optional[dict]:
+    def _infer_framework_changes(
+        self, current: Any, added: list[str], removed: list[str]
+    ) -> dict | None:
         """新增文本 → 框架 beats 增量（规则推断）。"""
         if not added:
             return None
@@ -225,8 +270,9 @@ class SyncEngine:
                     "name": name,
                     "chapter": current.chapter_number,
                     "description": _sentences_text(sent)[:60],
-                    "storyValue": "positive" if charge == "negative_to_positive"
-                                  else ("negative" if charge == "positive_to_negative" else "neutral"),
+                    "storyValue": "positive"
+                    if charge == "negative_to_positive"
+                    else ("negative" if charge == "positive_to_negative" else "neutral"),
                     "charge": charge,
                 }
                 new_beats.append(beat)
@@ -236,31 +282,59 @@ class SyncEngine:
         acts = current.framework.get("acts") or self._default_acts()
         return {
             "action": "update",
-            "data": {**current.framework, "beats": new_beats, "acts": acts,
-                     "version": current.framework.get("version", 1) + 1},
+            "data": {
+                **current.framework,
+                "beats": new_beats,
+                "acts": acts,
+                "version": current.framework.get("version", 1) + 1,
+            },
             "diff": diffs,
             "reason": "检测到正文新增情节，推导出新的框架节拍",
         }
 
     def _default_acts(self) -> list[dict]:
         return [
-            {"id": "act_1", "name": "第一幕：建立", "startChapter": 1, "endChapter": 3,
-             "description": "介绍主角、世界观与初始冲突"},
-            {"id": "act_2", "name": "第二幕：对抗", "startChapter": 4, "endChapter": 7,
-             "description": "张力升级，主角反复尝试后陷入困境"},
-            {"id": "act_3", "name": "第三幕：解决", "startChapter": 8, "endChapter": 10,
-             "description": "真相揭晓，主角完成转变"},
+            {
+                "id": "act_1",
+                "name": "第一幕：建立",
+                "startChapter": 1,
+                "endChapter": 3,
+                "description": "介绍主角、世界观与初始冲突",
+            },
+            {
+                "id": "act_2",
+                "name": "第二幕：对抗",
+                "startChapter": 4,
+                "endChapter": 7,
+                "description": "张力升级，主角反复尝试后陷入困境",
+            },
+            {
+                "id": "act_3",
+                "name": "第三幕：解决",
+                "startChapter": 8,
+                "endChapter": 10,
+                "description": "真相揭晓，主角完成转变",
+            },
         ]
 
-    def _infer_chapter_changes(self, current: Any, added: list[str],
-                               removed: list[str]) -> Optional[dict]:
+    def _infer_chapter_changes(
+        self, current: Any, added: list[str], removed: list[str]
+    ) -> dict | None:
         if not added and not removed:
             return None
         old_list = [dict(c) for c in current.chapters]
         if not old_list:
-            old_list = [{"number": 1, "title": f"第1章", "summary": "",
-                         "status": "writing", "wordCount": 0, "wordTarget": 2000,
-                         "sceneIds": []}]
+            old_list = [
+                {
+                    "number": 1,
+                    "title": "第1章",
+                    "summary": "",
+                    "status": "writing",
+                    "wordCount": 0,
+                    "wordTarget": 2000,
+                    "sceneIds": [],
+                }
+            ]
         ch = old_list[0]
         full_new = current.draft.get("content", "") + "".join(added)
         ch["wordCount"] = len(_sentences_text(full_new))
@@ -269,13 +343,17 @@ class SyncEngine:
         return {
             "action": "update",
             "data": old_list,
-            "diff": {"added": [], "modified": [{"number": ch["number"],
-                                                "wordCount": ch["wordCount"]}], "deleted": []},
+            "diff": {
+                "added": [],
+                "modified": [{"number": ch["number"], "wordCount": ch["wordCount"]}],
+                "deleted": [],
+            },
             "reason": "正文有增改，更新章节字数与状态",
         }
 
-    def _infer_character_changes(self, current: Any, added: list[str],
-                                 removed: list[str]) -> Optional[dict]:
+    def _infer_character_changes(
+        self, current: Any, added: list[str], removed: list[str]
+    ) -> dict | None:
         if not added:
             return None
         known = {c.get("name") for c in current.characters}
@@ -285,17 +363,22 @@ class SyncEngine:
             for sent in _split_sentences(chunk):
                 name = _name_from_sentence(sent)
                 if name and name not in known and name not in {c["name"] for c in new_chars}:
-                    new_chars.append({
-                        "id": _short_id("char"),
-                        "name": name,
-                        "role": "unknown",
-                        "beliefs": [],
-                        "goals": [],
-                        "secrets": [],
-                        "arc": {"startChapter": current.chapter_number, "endChapter": 0,
-                                "transformation": ""},
-                        "firstAppearance": current.chapter_number,
-                    })
+                    new_chars.append(
+                        {
+                            "id": _short_id("char"),
+                            "name": name,
+                            "role": "unknown",
+                            "beliefs": [],
+                            "goals": [],
+                            "secrets": [],
+                            "arc": {
+                                "startChapter": current.chapter_number,
+                                "endChapter": 0,
+                                "transformation": "",
+                            },
+                            "firstAppearance": current.chapter_number,
+                        }
+                    )
                     known.add(name)
                     diffs_added.append({"name": name, "firstAppearance": current.chapter_number})
         if not new_chars:
@@ -316,13 +399,14 @@ class SyncEngine:
         if not diff["structure_changed"]:
             return changes
         # 结构重大变化 → 试样故事重构提案
-        new_draft = self._restructure_draft(current.draft.get("content", ""),
-                                            old, new_framework)
+        new_draft = self._restructure_draft(current.draft.get("content", ""), old, new_framework)
         changes["draft"] = {
             "action": "rewrite",
-            "data": {"content": new_draft,
-                     "version": current.draft.get("version", 1) + 1,
-                     "last_modified": int(__import__("time").time() * 1000)},
+            "data": {
+                "content": new_draft,
+                "version": current.draft.get("version", 1) + 1,
+                "last_modified": int(__import__("time").time() * 1000),
+            },
             "diff": {"added": [], "modified": [], "deleted": []},
             "reason": f"框架结构变化：{diff['summary']}",
         }
@@ -334,9 +418,12 @@ class SyncEngine:
         added = list(new_names - old_names)
         removed = list(old_names - new_names)
         structure_changed = bool(added or removed)
-        return {"structure_changed": structure_changed,
-                "added": added, "removed": removed,
-                "summary": f"新增节拍 {len(added)} 个，移除 {len(removed)} 个"}
+        return {
+            "structure_changed": structure_changed,
+            "added": added,
+            "removed": removed,
+            "summary": f"新增节拍 {len(added)} 个，移除 {len(removed)} 个",
+        }
 
     def _restructure_draft(self, draft: str, old_fw: dict, new_fw: dict) -> str:
         """规则重构：保留原文骨架，在开头附上按新框架划分的结构提示。
@@ -360,26 +447,34 @@ class SyncEngine:
     def _sync_from_chapters(self, current: Any, new_chapters: list) -> dict:
         old = current.chapters or []
         added = [c for c in new_chapters if c.get("number") not in {o.get("number") for o in old}]
-        modified = [c for c in new_chapters
-                    if c.get("number") in {o.get("number") for o in old} and c != old[next(i for i, o in enumerate(old) if o.get("number") == c.get("number"))]]
+        modified = [
+            c
+            for c in new_chapters
+            if c.get("number") in {o.get("number") for o in old}
+            and c != old[next(i for i, o in enumerate(old) if o.get("number") == c.get("number"))]
+        ]
         changes: dict[str, dict] = {}
         if added:
             ch = added[0]
             changes.setdefault("draft", {"action": "adjust", "adjustments": [], "reason": ""})
-            changes["draft"]["adjustments"].append({
-                "type": "expand",
-                "chapter": ch.get("number"),
-                "suggestion": f"为新增章节「{ch.get('title', '')}」扩写正文",
-            })
+            changes["draft"]["adjustments"].append(
+                {
+                    "type": "expand",
+                    "chapter": ch.get("number"),
+                    "suggestion": f"为新增章节「{ch.get('title', '')}」扩写正文",
+                }
+            )
             changes["draft"]["reason"] = f"新增章节：{ch.get('title', '')}"
         if modified:
             ch = modified[0]
             changes.setdefault("draft", {"action": "adjust", "adjustments": [], "reason": ""})
-            changes["draft"]["adjustments"].append({
-                "type": "revision",
-                "chapter": ch.get("number"),
-                "suggestion": f"章节「{ch.get('title', '')}」状态变为 {ch.get('status')}，建议按大纲调整正文",
-            })
+            changes["draft"]["adjustments"].append(
+                {
+                    "type": "revision",
+                    "chapter": ch.get("number"),
+                    "suggestion": f"章节「{ch.get('title', '')}」状态变为 {ch.get('status')}，建议按大纲调整正文",
+                }
+            )
             changes["draft"]["reason"] = f"章节状态变化：{ch.get('title', '')}"
         return changes
 
@@ -397,24 +492,29 @@ class SyncEngine:
                 new_names.append(name)
                 continue
             # 信念数量变化视为信念更新
-            if (len(nc.get("beliefs") or []) != len(oc.get("beliefs") or [])
-                    or (nc.get("goals") or []) != (oc.get("goals") or [])):
+            if len(nc.get("beliefs") or []) != len(oc.get("beliefs") or []) or (
+                nc.get("goals") or []
+            ) != (oc.get("goals") or []):
                 belief_changes.append({"name": name})
         changes: dict[str, dict] = {}
         if belief_changes or new_names:
             adjustments = []
             if belief_changes:
-                adjustments.append({
-                    "type": "rewrite_dialogue",
-                    "names": [b["name"] for b in belief_changes],
-                    "suggestion": f"角色信念/目标变化：{', '.join(b['name'] for b in belief_changes)}，建议改写相关对话与行动",
-                })
+                adjustments.append(
+                    {
+                        "type": "rewrite_dialogue",
+                        "names": [b["name"] for b in belief_changes],
+                        "suggestion": f"角色信念/目标变化：{', '.join(b['name'] for b in belief_changes)}，建议改写相关对话与行动",
+                    }
+                )
             if new_names:
-                adjustments.append({
-                    "type": "insert_appearance",
-                    "names": new_names,
-                    "suggestion": f"新增角色：{', '.join(new_names)}，建议在正文中安排登场",
-                })
+                adjustments.append(
+                    {
+                        "type": "insert_appearance",
+                        "names": new_names,
+                        "suggestion": f"新增角色：{', '.join(new_names)}，建议在正文中安排登场",
+                    }
+                )
             changes["draft"] = {
                 "action": "adjust",
                 "adjustments": adjustments,
@@ -424,31 +524,36 @@ class SyncEngine:
 
     # ─────────── 冲突检测与落地 ───────────
 
-    def _detect_conflicts(self, current: Any, changes: dict, source: str,
-                          force: bool = False) -> list[dict]:
+    def _detect_conflicts(
+        self, current: Any, changes: dict, source: str, force: bool = False
+    ) -> list[dict]:
         conflicts: list[dict] = []
         if not changes:
             return conflicts
         locks = current.locks or {}
         # 锁定目标视图不允许被改写
-        for view, change in changes.items():
-            if view != source and locks.get(view):
-                conflicts.append({
-                    "id": _short_id("conf"),
-                    "source_view": source,
-                    "target_view": view,
-                    "conflict_type": "lock",
-                    "message": f"「{view}」视图已锁定，本次改动被拦截",
-                })
-        # 两个不同源同时改写同一目标（当前单源场景不会出现，但保留守卫）
-        if not conflicts and len(changes) > 1 and "draft" in changes:
-            conflicts.append({
+        conflicts.extend(
+            {
                 "id": _short_id("conf"),
                 "source_view": source,
-                "target_view": "draft",
-                "conflict_type": "overlap",
-                "message": "多个目标同时改写试样故事，需要确认",
-            })
+                "target_view": view,
+                "conflict_type": "lock",
+                "message": f"「{view}」视图已锁定，本次改动被拦截",
+            }
+            for view in changes
+            if view != source and locks.get(view)
+        )
+        # 两个不同源同时改写同一目标（当前单源场景不会出现，但保留守卫）
+        if not conflicts and len(changes) > 1 and "draft" in changes:
+            conflicts.append(
+                {
+                    "id": _short_id("conf"),
+                    "source_view": source,
+                    "target_view": "draft",
+                    "conflict_type": "overlap",
+                    "message": "多个目标同时改写试样故事，需要确认",
+                }
+            )
         return conflicts
 
     def _apply_changes(self, current: Any, changes: dict, source: str) -> dict:
@@ -472,13 +577,15 @@ class SyncEngine:
                 current.set_sync_status(view, "synced")
                 applied[view] = change
         if applied:
-            current.record_change({
-                "id": _short_id("chg"),
-                "timestamp": int(__import__("time").time() * 1000),
-                "source_view": source,
-                "summary": self._generate_summary(applied),
-                "accepted": True,
-            })
+            current.record_change(
+                {
+                    "id": _short_id("chg"),
+                    "timestamp": int(__import__("time").time() * 1000),
+                    "source_view": source,
+                    "summary": self._generate_summary(applied),
+                    "accepted": True,
+                }
+            )
         return applied
 
     def _generate_summary(self, changes: dict) -> str:
@@ -498,5 +605,11 @@ def build_initial_framework(template: str = "three_act") -> dict:
     """构建空项目的默认框架（acts + 空 beats）。"""
     engine = SyncEngine()
     acts = engine._default_acts()
-    return {"template": template, "acts": acts, "beats": [], "arcs": [],
-            "version": 1, "last_modified": int(__import__("time").time() * 1000)}
+    return {
+        "template": template,
+        "acts": acts,
+        "beats": [],
+        "arcs": [],
+        "version": 1,
+        "last_modified": int(__import__("time").time() * 1000),
+    }

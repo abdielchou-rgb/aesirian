@@ -2,6 +2,7 @@
 
 将抽象的"告诉"转化为"展示"：用动作、感官、对话、细节让读者自行得出结论。
 """
+
 from __future__ import annotations
 
 import re
@@ -55,24 +56,42 @@ class ShowDontTellDetector:
             # 若情绪旁有生理/动作信号 → 已展示，不算违规
             has_show = sum(text.count(s) for s in signals) > 0
             if not has_show:
-                issues.append({
-                    "rule": f"telling_{emotion}",
-                    "severity": "warn",
-                    "message": f"直接告诉读者情绪（{emotion} × {len(matches)}），"
-                               f"改用身体信号展示：如「{'/'.join(signals[:3])}」",
-                })
+                issues.append(
+                    {
+                        "rule": f"telling_{emotion}",
+                        "severity": "warn",
+                        "message": f"直接告诉读者情绪（{emotion} × {len(matches)}），"
+                        f"改用身体信号展示：如「{'/'.join(signals[:3])}」",
+                    }
+                )
 
         # 通用：抽象情绪词堆叠且无具体行为
         total_tells = sum(len(re.findall(p, text)) for p, _ in TELL_PATTERNS)
-        action_verbs = sum(text.count(w) for w in
-                           ["推", "拉", "握", "站", "走", "蹲", "抬头", "低头",
-                            "抓起", "放下", "转身", "靠近", "后退"])
+        action_verbs = sum(
+            text.count(w)
+            for w in [
+                "推",
+                "拉",
+                "握",
+                "站",
+                "走",
+                "蹲",
+                "抬头",
+                "低头",
+                "抓起",
+                "放下",
+                "转身",
+                "靠近",
+                "后退",
+            ]
+        )
         if total_tells >= 3 and action_verbs == 0:
-            issues.append({
-                "rule": "emotion_tell_overload",
-                "severity": "warn",
-                "message": f"情绪描述 {total_tells} 处但无任何动作——全段在说情绪，"
-                           f"让角色做出来",
-            })
+            issues.append(
+                {
+                    "rule": "emotion_tell_overload",
+                    "severity": "warn",
+                    "message": f"情绪描述 {total_tells} 处但无任何动作——全段在说情绪，让角色做出来",
+                }
+            )
 
         return issues

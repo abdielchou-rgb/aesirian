@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 """对话质量门禁 — McKee《对白的解剖》核心原理。
 
 三层对白分析：
@@ -7,12 +8,14 @@ from __future__ import annotations
   - 深层：对话透露了角色什么（性格、背景、价值观）
 """
 
-from .base import BaseGate
 from wenjian.models import GateSeverity
+
+from .base import BaseGate
 
 
 class DLG01_DialogueFunction(BaseGate):
     """每段对话必须有功能。"""
+
     gate_id = "DLG-01"
     name = "对话功能门禁"
     description = "每段对话必须至少完成一项：推进剧情 / 塑造角色 / 传达信息"
@@ -25,13 +28,18 @@ class DLG01_DialogueFunction(BaseGate):
         if ratio < 0.5:
             return self.fail_result(
                 message=f"仅 {functional_lines}/{total_lines} 句对话有实质功能（{ratio:.0%}）",
-                details={"functional": functional_lines, "total": total_lines, "ratio": round(ratio, 2)},
+                details={
+                    "functional": functional_lines,
+                    "total": total_lines,
+                    "ratio": round(ratio, 2),
+                },
             )
         return self.pass_result(details={"ratio": round(ratio, 2)})
 
 
 class DLG02_Subtext(BaseGate):
     """对白不能直接说出内心想法。"""
+
     gate_id = "DLG-02"
     name = "潜台词门禁"
     description = "角色的对白不能直接说出内心真实想法（需通过暗示/回避/动作传递）"
@@ -50,6 +58,7 @@ class DLG02_Subtext(BaseGate):
 
 class DLG03_DialogueRhythm(BaseGate):
     """不能连续超过 5 轮纯对话。"""
+
     gate_id = "DLG-03"
     name = "对话节奏门禁"
     description = "不能连续超过 5 轮对白无动作描写或叙述插入"
@@ -66,6 +75,7 @@ class DLG03_DialogueRhythm(BaseGate):
 
 class DLG04_InfoDumpDialogue(BaseGate):
     """不能让角色"如你所知"式倾倒信息。"""
+
     gate_id = "DLG-04"
     name = "信息对话门禁"
     description = "角色对话中不应出现'如你所知'式的信息倾倒"
@@ -82,6 +92,7 @@ class DLG04_InfoDumpDialogue(BaseGate):
 
 class DLG05_CharacterVoice(BaseGate):
     """每个角色的说话方式应有区别。"""
+
     gate_id = "DLG-05"
     name = "角色声线门禁"
     description = "每个主要角色的说话方式应有可辨识的区别——用词、句式、语气"
@@ -109,7 +120,10 @@ class DLG05_CharacterVoice(BaseGate):
                 if abs(avg_len_0 - avg_len_1) < 2:
                     return self.fail_result(
                         message=f"角色'{char_keys[0]}'和'{char_keys[1]}'的句子长度几乎相同——建议赋予不同说话风格",
-                        details={"characters": char_keys[:3], "note": "至少在一个维度上区分：用词/句式/语气/节奏"},
+                        details={
+                            "characters": char_keys[:3],
+                            "note": "至少在一个维度上区分：用词/句式/语气/节奏",
+                        },
                     )
 
         return self.pass_result(details={"characters": list(voices.keys())})
@@ -117,6 +131,7 @@ class DLG05_CharacterVoice(BaseGate):
 
 class DLG06_ActionInterrupt(BaseGate):
     """对话中应有行为动作穿插。"""
+
     gate_id = "DLG-06"
     name = "对话动作穿插门禁"
     description = "长段对话中应有动作描写穿插——'说'之外角色还在做什么"
@@ -129,6 +144,10 @@ class DLG06_ActionInterrupt(BaseGate):
         if ratio < 0.2 and dialogue_paragraphs >= 5:
             return self.fail_result(
                 message=f"动作穿插仅 {action_beats}/{dialogue_paragraphs}（{ratio:.0%}）——读者只知道角色在说，不知道角色在做",
-                details={"action_beats": action_beats, "total_paragraphs": dialogue_paragraphs, "ratio": round(ratio, 2)},
+                details={
+                    "action_beats": action_beats,
+                    "total_paragraphs": dialogue_paragraphs,
+                    "ratio": round(ratio, 2),
+                },
             )
         return self.pass_result(details={"ratio": round(ratio, 2)})

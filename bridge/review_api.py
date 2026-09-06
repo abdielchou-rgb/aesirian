@@ -11,11 +11,12 @@
 会话态以内存 ReviewStore 保存（单机单进程够用）；快照落 SQLModel 模型由
 上层调用方按需接入（见 models.ReviewSnapshot）。
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException
 
-from core.review.models import ReviewState, SyncRequest, ResolveRequest
+from core.review.models import ResolveRequest, ReviewState, SyncRequest
 from core.review.sync_engine import SyncEngine, build_initial_framework
 
 router = APIRouter(prefix="/api", tags=["review"])
@@ -141,13 +142,15 @@ def self_apply(state: ReviewState, view: str, change: dict) -> None:
         state.chapters = data
     elif view == "characters" and isinstance(data, list):
         state.characters = data
-    state.record_change({
-        "id": f"chg_{len(state.change_history) + 1}",
-        "timestamp": int(__import__("time").time() * 1000),
-        "source_view": "resolve",
-        "summary": change.get("reason", f"接受 {view} 变更"),
-        "accepted": True,
-    })
+    state.record_change(
+        {
+            "id": f"chg_{len(state.change_history) + 1}",
+            "timestamp": int(__import__("time").time() * 1000),
+            "source_view": "resolve",
+            "summary": change.get("reason", f"接受 {view} 变更"),
+            "accepted": True,
+        }
+    )
 
 
 @router.post("/project/{project_id}/lock")
@@ -177,4 +180,4 @@ async def set_sync_mode(project_id: str, body: dict):
 async def get_changes(project_id: str, limit: int = 20, offset: int = 0):
     _ensure_state(project_id)
     log = _CHANGE_LOG.get(project_id, [])
-    return {"changes": log[offset: offset + limit], "total": len(log)}
+    return {"changes": log[offset : offset + limit], "total": len(log)}

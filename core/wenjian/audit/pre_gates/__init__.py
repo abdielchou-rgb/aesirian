@@ -5,31 +5,50 @@
 """
 
 from __future__ import annotations
+
 import re
 from typing import Any
 
-from wenjian.models import GateSeverity, GateResult
+from wenjian.models import GateResult, GateSeverity
 
 
 class PreGateBase:
     """写前门禁基类。"""
 
     @property
-    def gate_id(self) -> str: raise NotImplementedError
+    def gate_id(self) -> str:
+        raise NotImplementedError
+
     @property
-    def name(self) -> str: raise NotImplementedError
+    def name(self) -> str:
+        raise NotImplementedError
+
     @property
-    def description(self) -> str: raise NotImplementedError
+    def description(self) -> str:
+        raise NotImplementedError
 
     def pass_result(self, msg="通过", details=None) -> dict:
-        return {"gate_id": self.gate_id, "name": self.name, "passed": True, "message": msg, "details": details or {}}
+        return {
+            "gate_id": self.gate_id,
+            "name": self.name,
+            "passed": True,
+            "message": msg,
+            "details": details or {},
+        }
 
     def fail_result(self, msg, details=None) -> dict:
-        return {"gate_id": self.gate_id, "name": self.name, "passed": False, "message": msg, "details": details or {}}
+        return {
+            "gate_id": self.gate_id,
+            "name": self.name,
+            "passed": False,
+            "message": msg,
+            "details": details or {},
+        }
 
 
 class PG01_ProtocolParse(PreGateBase):
     """门 1：协议解析 — AI 输出必须包含分隔符 + JSON 变更声明。"""
+
     gate_id = "PG-01"
     name = "协议解析"
     description = "正文必须包含 ---CHANGES--- 分隔符 + JSON 变更声明"
@@ -42,11 +61,12 @@ class PG01_ProtocolParse(PreGateBase):
         _, changes_part = text.split(self.SEPARATOR, 1)
         changes_part = changes_part.strip()
         # 尝试提取 JSON
-        json_match = re.search(r'\{.*\}', changes_part, re.DOTALL)
+        json_match = re.search(r"\{.*\}", changes_part, re.DOTALL)
         if not json_match:
             return self.fail_result("CHANGES 段缺少 JSON", {"changes_raw": changes_part[:200]})
         try:
             import json
+
             data = json.loads(json_match.group())
             required = ["character_updates", "relationship_updates", "item_updates"]
             missing = [k for k in required if k not in data]
@@ -59,6 +79,7 @@ class PG01_ProtocolParse(PreGateBase):
 
 class PG02_ReferenceCheck(PreGateBase):
     """门 2：引用校验 — CHANGES 引用的角色/地点 ID 必须在设计数据中存在。"""
+
     gate_id = "PG-02"
     name = "引用校验"
     description = "CHANGES 引用的角色/地点/势力 ID 必须在 ledger 中存在"
@@ -76,12 +97,15 @@ class PG02_ReferenceCheck(PreGateBase):
         known_ids = set(ledger.get("known_ids", []))
         missing = [r for r in refs if r not in known_ids]
         if missing:
-            return self.fail_result(f"引用了不存在的 ID: {missing}", {"missing": missing, "known_count": len(known_ids)})
+            return self.fail_result(
+                f"引用了不存在的 ID: {missing}", {"missing": missing, "known_count": len(known_ids)}
+            )
         return self.pass_result(details={"checked": len(refs), "all_known": True})
 
 
 class PG03_ConsistencyCheck(PreGateBase):
     """门 3：一致性校验 — 角色状态变化是否与事实快照矛盾。"""
+
     gate_id = "PG-03"
     name = "一致性校验"
     description = "角色状态变化不能与事实快照矛盾"
@@ -99,12 +123,15 @@ class PG03_ConsistencyCheck(PreGateBase):
                     # 检查是否互斥（如"活着"→"死了"可以被允许，这是剧情推进）
                     conflicts.append({"character": cid, "field": k, "from": old_v, "to": v})
         if len(conflicts) > 3:
-            return self.fail_result(f"状态变化过多 ({len(conflicts)} 处)，可能存在不一致", {"conflicts": conflicts[:5]})
+            return self.fail_result(
+                f"状态变化过多 ({len(conflicts)} 处)，可能存在不一致", {"conflicts": conflicts[:5]}
+            )
         return self.pass_result(details={"conflicts_checked": len(conflicts), "allowed": True})
 
 
 class PG04_UnknownEntity(PreGateBase):
     """门 4：未知实体检测 — 正文不能突然出现太多未登记的实体。"""
+
     gate_id = "PG-04"
     name = "未知实体检测"
     description = "正文引入的未登记实体不能超过阈值"
@@ -118,11 +145,14 @@ class PG04_UnknownEntity(PreGateBase):
                 f"引入了 {len(with_role)} 个有剧情作用的新实体（上限 {max_new}）",
                 {"new_with_role": with_role, "total_unknown": len(unknown)},
             )
-        return self.pass_result(details={"new_with_role": len(with_role), "total_unknown": len(unknown)})
+        return self.pass_result(
+            details={"new_with_role": len(with_role), "total_unknown": len(unknown)}
+        )
 
 
 class PG05_DescriptionCheck(PreGateBase):
     """门 5：描写一致性 — 外貌描写是否与角色档案一致。"""
+
     gate_id = "PG-05"
     name = "描写一致性"
     description = "正文中角色外貌描写不能与档案矛盾"
@@ -137,11 +167,13 @@ class PG05_DescriptionCheck(PreGateBase):
                 if not expected:
                     continue
                 # 在正文中搜索"name + 的 + attr"
-                pattern = re.compile(f'{name}.*?的.*?({attr})[:：]?\s*(\S+)')
+                pattern = re.compile(f"{name}.*?的.*?({attr})[:：]?\s*(\S+)")
                 for match in pattern.finditer(text):
                     found = match.group(2)
                     if found and found not in expected:
-                        mismatches.append({"character": name, "attr": attr, "expected": expected, "found": found})
+                        mismatches.append(
+                            {"character": name, "attr": attr, "expected": expected, "found": found}
+                        )
         if mismatches:
             return self.fail_result(f"外貌描写不一致: {mismatches}", {"mismatches": mismatches})
         return self.pass_result()
@@ -149,6 +181,7 @@ class PG05_DescriptionCheck(PreGateBase):
 
 class PG06_BlueprintPresence(PreGateBase):
     """门 6：蓝图出场检查 — 蓝图指定的角色必须在正文中出现。"""
+
     gate_id = "PG-06"
     name = "蓝图出场检查"
     description = "大纲/蓝图指定的角色必须在正文中实际出现"
@@ -166,9 +199,13 @@ class PG06_BlueprintPresence(PreGateBase):
             elif count < min_mentions:
                 insufficient.append({"entity": name, "mentions": count, "min": min_mentions})
         if absent:
-            return self.fail_result(f"蓝图指定但未出现: {absent}", {"absent": absent, "insufficient": insufficient})
+            return self.fail_result(
+                f"蓝图指定但未出现: {absent}", {"absent": absent, "insufficient": insufficient}
+            )
         if insufficient:
-            return self.fail_result(f"出场但叙事力度不足: {insufficient}", {"insufficient": insufficient})
+            return self.fail_result(
+                f"出场但叙事力度不足: {insufficient}", {"insufficient": insufficient}
+            )
         return self.pass_result()
 
 
@@ -184,9 +221,15 @@ ALL_PRE_GATES: dict[str, type[PreGateBase]] = {
 }
 
 
-def run_pre_gates(text: str = "", changes: dict = None, ledger: dict = None,
-                  new_entities: list = None, character_profiles: dict = None,
-                  mandated_entities: list = None, fact_snapshot: dict = None) -> list[dict]:
+def run_pre_gates(
+    text: str = "",
+    changes: dict = None,
+    ledger: dict = None,
+    new_entities: list = None,
+    character_profiles: dict = None,
+    mandated_entities: list = None,
+    fact_snapshot: dict = None,
+) -> list[dict]:
     """运行全部 6 道写前门禁。"""
     if changes is None:
         changes = {}

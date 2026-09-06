@@ -1,12 +1,16 @@
 """OpenAI model provider."""
 
 import json
+
 import httpx
+
 from .base import BaseModelProvider, ModelResponse
 
 
 class OpenAIProvider(BaseModelProvider):
-    def chat(self, system: str = "", messages=None, max_tokens=4096, temperature=0.3) -> ModelResponse:
+    def chat(
+        self, system: str = "", messages=None, max_tokens=4096, temperature=0.3
+    ) -> ModelResponse:
         if messages is None:
             messages = []
         full_messages = [{"role": "system", "content": system}] + messages if system else messages
@@ -29,7 +33,10 @@ class OpenAIProvider(BaseModelProvider):
             content=data["choices"][0]["message"]["content"],
             model=data["model"],
             provider="openai",
-            usage={"input_tokens": data["usage"]["prompt_tokens"], "output_tokens": data["usage"]["completion_tokens"]},
+            usage={
+                "input_tokens": data["usage"]["prompt_tokens"],
+                "output_tokens": data["usage"]["completion_tokens"],
+            },
         )
 
     def chat_json(self, system: str = "", messages=None, max_tokens=4096, temperature=0.3) -> dict:
@@ -42,4 +49,5 @@ class OpenAIProvider(BaseModelProvider):
 
 
 from .base import registry as _reg
+
 _reg.register("openai", OpenAIProvider)

@@ -6,13 +6,16 @@ Provides: structured logging, distributed traces, metrics, cost tracking.
 """
 
 from __future__ import annotations
-from contextlib import contextmanager
-from functools import wraps
-from typing import Optional, Callable, Any
+
+import importlib.util
+import inspect
+import logging
 import os
 import time
-import logging
-import inspect
+from collections.abc import Callable
+from contextlib import contextmanager
+from functools import wraps
+
 import structlog
 
 # 配置 structlog
@@ -20,7 +23,7 @@ structlog.configure(
     processors=[
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer()
+        structlog.processors.JSONRenderer(),
     ],
     wrapper_class=structlog.make_filtering_bound_logger(logging.INFO),
     context_class=dict,
@@ -94,24 +97,28 @@ def configure_observability(
         # 设置全局属性（O2 兼容：logfire v5 移除 set_global_tags，改为 with_tags）
         _set_tags = getattr(logfire, "set_global_tags", None)
         if callable(_set_tags):
-            _set_tags({
-                "service": service_name,
-                "version": "0.2.0",
-            })
+            _set_tags(
+                {
+                    "service": service_name,
+                    "version": "0.2.0",
+                }
+            )
 
         _LOGFIRE_CONFIGURED = True
         log.info("observability_configured", service=service_name, has_token=bool(token))
-        return True
 
     except ImportError:
         log.warning("logfire_not_installed", message="pip install logfire to enable")
         return False
     except Exception as e:
-        log.error("observability_config_failed", error=str(e))
+        log.error("observability_config_failed", error=str(e))  # noqa: TRY400  # structlog 无 ExceptionRenderer，exception() 不产生堆栈
         return False
+    else:
+        return True
 
 
 # ─── Tracing Decorators ───
+
 
 def trace_span(name: str = None, attributes: dict = None):
     """
@@ -122,23 +129,26 @@ def trace_span(name: str = None, attributes: dict = None):
         async def generate_chapter(...):
             ...
     """
+
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
             span_name = name or f"{func.__module__}.{func.__qualname__}"
             try:
                 import logfire
+
                 with logfire.span(span_name, attributes=attributes or {}) as span:
                     start = time.perf_counter()
                     try:
                         result = func(*args, **kwargs)
-                        span.set_attribute("success", True)
-                        return result
                     except Exception as e:
                         span.set_attribute("success", False)
                         span.set_attribute("error", str(e))
                         span.record_exception(e)
                         raise
+                    else:
+                        span.set_attribute("success", True)
+                        return result
                     finally:
                         span.set_attribute("duration_ms", (time.perf_counter() - start) * 1000)
             except ImportError:
@@ -149,23 +159,26 @@ def trace_span(name: str = None, attributes: dict = None):
             span_name = name or f"{func.__module__}.{func.__qualname__}"
             try:
                 import logfire
+
                 with logfire.span(span_name, attributes=attributes or {}) as span:
                     start = time.perf_counter()
                     try:
                         result = await func(*args, **kwargs)
-                        span.set_attribute("success", True)
-                        return result
                     except Exception as e:
                         span.set_attribute("success", False)
                         span.set_attribute("error", str(e))
                         span.record_exception(e)
                         raise
+                    else:
+                        span.set_attribute("success", True)
+                        return result
                     finally:
                         span.set_attribute("duration_ms", (time.perf_counter() - start) * 1000)
             except ImportError:
                 return await func(*args, **kwargs)
 
         import asyncio
+
         if asyncio.iscoroutinefunction(func):
             return async_wrapper
         return sync_wrapper
@@ -178,6 +191,7 @@ def trace_context(name: str, attributes: dict = None):
     """上下文管理器：手动创建 span"""
     try:
         import logfire
+
         with logfire.span(name, attributes=attributes or {}) as span:
             start = time.perf_counter()
             try:
@@ -196,10 +210,12 @@ def trace_context(name: str, attributes: dict = None):
 
 # ─── Metrics Helpers ───
 
+
 def metric_counter(name: str, value: float = 1, attributes: dict = None):
     """记录计数器指标"""
     try:
         import logfire
+
         logfire.metric(name, value, attributes=attributes or {})
     except ImportError:
         pass
@@ -209,6 +225,7 @@ def metric_histogram(name: str, value: float, attributes: dict = None):
     """记录直方图指标"""
     try:
         import logfire
+
         logfire.metric(name, value, attributes=attributes or {})
     except ImportError:
         pass
@@ -218,12 +235,14 @@ def metric_gauge(name: str, value: float, attributes: dict = None):
     """记录仪表盘指标"""
     try:
         import logfire
+
         logfire.metric(name, value, attributes=attributes or {})
     except ImportError:
         pass
 
 
 # ─── Cost Tracking ───
+
 
 def track_llm_call(
     model: str,
@@ -255,51 +274,65 @@ def track_llm_call(
 
 # ─── Chapter Generation Tracing ───
 
+
 @contextmanager
 def trace_chapter_generation(project_id: str, chapter_num: int, premise: str = ""):
     """章节生成的完整追踪上下文"""
-    with trace_context("chapter_generation", {
-        "project_id": project_id,
-        "chapter_number": chapter_num,
-        "premise_length": len(premise),
-    }) as span:
+    with trace_context(
+        "chapter_generation",
+        {
+            "project_id": project_id,
+            "chapter_number": chapter_num,
+            "premise_length": len(premise),
+        },
+    ) as span:
         yield span
 
 
 @contextmanager
 def trace_gate_audit(project_id: str, chapter_num: int, gate_ids: list[str]):
     """门禁审计追踪"""
-    with trace_context("gate_audit", {
-        "project_id": project_id,
-        "chapter_number": chapter_num,
-        "gate_count": len(gate_ids),
-        "gate_ids": gate_ids,
-    }) as span:
+    with trace_context(
+        "gate_audit",
+        {
+            "project_id": project_id,
+            "chapter_number": chapter_num,
+            "gate_count": len(gate_ids),
+            "gate_ids": gate_ids,
+        },
+    ) as span:
         yield span
 
 
 @contextmanager
 def trace_tom_query(project_id: str, operation: str):
     """ToM 引擎查询追踪"""
-    with trace_context("tom_query", {
-        "project_id": project_id,
-        "operation": operation,
-    }) as span:
+    with trace_context(
+        "tom_query",
+        {
+            "project_id": project_id,
+            "operation": operation,
+        },
+    ) as span:
         yield span
 
 
 @contextmanager
 def trace_kg_operation(project_id: str, operation: str, entity_count: int = 0):
     """知识图谱操作追踪"""
-    with trace_context("kg_operation", {
-        "project_id": project_id,
-        "operation": operation,
-        "entity_count": entity_count,
-    }) as span:
+    with trace_context(
+        "kg_operation",
+        {
+            "project_id": project_id,
+            "operation": operation,
+            "entity_count": entity_count,
+        },
+    ) as span:
         yield span
 
 
 # ─── Health Check ───
+
 
 def health_check() -> dict:
     """健康检查端点数据"""
@@ -307,10 +340,9 @@ def health_check() -> dict:
         "observability": "configured" if _LOGFIRE_CONFIGURED else "not_configured",
         "logfire": "available" if _LOGFIRE_CONFIGURED else "unavailable",
     }
-    try:
-        import logfire
+    if importlib.util.find_spec("logfire") is not None:
         status["logfire"] = "connected"
-    except ImportError:
+    else:
         status["logfire"] = "not_installed"
     return status
 

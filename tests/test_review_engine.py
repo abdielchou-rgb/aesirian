@@ -5,11 +5,12 @@
 - framework/chapters/characters → draft 的重构/调整提案
 - 锁定视图的冲突拦截与裁决落地
 """
-import sys
+
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
 
 from core.review.models import ReviewState
 from core.review.sync_engine import SyncEngine, build_initial_framework
@@ -23,8 +24,17 @@ def make_state() -> ReviewState:
     st = ReviewState(project_id="p1")
     st.draft = {"content": STORY_OLD, "version": 1, "last_modified": 0}
     st.framework = build_initial_framework()
-    st.chapters = [{"number": 1, "title": "第一章", "summary": "", "status": "writing",
-                    "wordCount": len(STORY_OLD), "wordTarget": 2000, "sceneIds": []}]
+    st.chapters = [
+        {
+            "number": 1,
+            "title": "第一章",
+            "summary": "",
+            "status": "writing",
+            "wordCount": len(STORY_OLD),
+            "wordTarget": 2000,
+            "sceneIds": [],
+        }
+    ]
     return st
 
 
@@ -70,8 +80,10 @@ class TestSyncEngineOffline:
         eng = SyncEngine()
         res = eng.sync("p1", "draft", {"content": STORY_NEW}, state=st)
         assert res["status"] == "conflict"
-        assert any(c["target_view"] == "framework" and c["conflict_type"] == "lock"
-                   for c in res["conflicts"])
+        assert any(
+            c["target_view"] == "framework" and c["conflict_type"] == "lock"
+            for c in res["conflicts"]
+        )
 
     def test_force_bypasses_lock(self):
         st = make_state()
@@ -86,10 +98,26 @@ class TestSyncEngineOffline:
         new_fw = {
             "template": "three_act",
             "acts": build_initial_framework()["acts"],
-            "beats": [{"id": "b1", "actId": "act_1", "name": "引出水晶", "chapter": 1,
-                       "description": "陈默获得水晶", "storyValue": "positive", "charge": "none"},
-                      {"id": "b2", "actId": "act_2", "name": "绝境", "chapter": 2,
-                       "description": "被反锁", "storyValue": "negative", "charge": "positive_to_negative"}],
+            "beats": [
+                {
+                    "id": "b1",
+                    "actId": "act_1",
+                    "name": "引出水晶",
+                    "chapter": 1,
+                    "description": "陈默获得水晶",
+                    "storyValue": "positive",
+                    "charge": "none",
+                },
+                {
+                    "id": "b2",
+                    "actId": "act_2",
+                    "name": "绝境",
+                    "chapter": 2,
+                    "description": "被反锁",
+                    "storyValue": "negative",
+                    "charge": "positive_to_negative",
+                },
+            ],
             "version": 2,
         }
         eng = SyncEngine()
@@ -102,8 +130,16 @@ class TestSyncEngineOffline:
     def test_chapters_add_suggests_expand(self):
         st = make_state()
         new_ch = [dict(c) for c in st.chapters] + [
-            {"number": 2, "title": "第二章", "summary": "", "status": "planned",
-             "wordCount": 0, "wordTarget": 2000, "sceneIds": []}]
+            {
+                "number": 2,
+                "title": "第二章",
+                "summary": "",
+                "status": "planned",
+                "wordCount": 0,
+                "wordTarget": 2000,
+                "sceneIds": [],
+            }
+        ]
         eng = SyncEngine()
         res = eng.sync("p1", "chapters", new_ch, state=st)
         draft = res["changes"].get("draft")
@@ -112,14 +148,30 @@ class TestSyncEngineOffline:
 
     def test_characters_belief_change_suggests_rewrite(self):
         st = make_state()
-        st.characters = [{"id": "c1", "name": "陈默", "role": "protagonist",
-                          "beliefs": ["世界是安全的"], "goals": [], "secrets": [],
-                          "arc": {"startChapter": 1, "endChapter": 0, "transformation": ""},
-                          "firstAppearance": 1}]
-        new_chars = [{"id": "c1", "name": "陈默", "role": "protagonist",
-                      "beliefs": ["世界是安全的", "必须相信直觉"], "goals": ["逃出去"], "secrets": [],
-                      "arc": {"startChapter": 1, "endChapter": 0, "transformation": ""},
-                      "firstAppearance": 1}]
+        st.characters = [
+            {
+                "id": "c1",
+                "name": "陈默",
+                "role": "protagonist",
+                "beliefs": ["世界是安全的"],
+                "goals": [],
+                "secrets": [],
+                "arc": {"startChapter": 1, "endChapter": 0, "transformation": ""},
+                "firstAppearance": 1,
+            }
+        ]
+        new_chars = [
+            {
+                "id": "c1",
+                "name": "陈默",
+                "role": "protagonist",
+                "beliefs": ["世界是安全的", "必须相信直觉"],
+                "goals": ["逃出去"],
+                "secrets": [],
+                "arc": {"startChapter": 1, "endChapter": 0, "transformation": ""},
+                "firstAppearance": 1,
+            }
+        ]
         eng = SyncEngine()
         res = eng.sync("p1", "characters", new_chars, state=st)
         draft = res["changes"].get("draft")
@@ -129,8 +181,9 @@ class TestSyncEngineOffline:
     def test_target_views_filter(self):
         st = make_state()
         eng = SyncEngine()
-        res = eng.sync("p1", "draft", {"content": STORY_NEW},
-                       options={"target_views": ["chapters"]}, state=st)
+        res = eng.sync(
+            "p1", "draft", {"content": STORY_NEW}, options={"target_views": ["chapters"]}, state=st
+        )
         assert set(res["changes"].keys()) <= {"chapters"}
 
 

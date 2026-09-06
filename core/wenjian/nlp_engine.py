@@ -5,10 +5,10 @@ v3.1: 集成 jieba 分词器, 标准 POS 标注, 多重可读性指标。
 """
 
 from __future__ import annotations
-import re
+
 import math
+import re
 from collections import Counter
-from typing import Optional
 
 # ── 尝试导入 jieba ──────────────────────────────────────────────────────
 _JIEBA_AVAILABLE = False
@@ -17,6 +17,7 @@ _jieba_posseg = None
 try:
     import jieba
     import jieba.posseg as _jieba_posseg
+
     _JIEBA_AVAILABLE = True
 except ImportError:
     pass
@@ -28,31 +29,56 @@ except ImportError:
 
 _JIEBA_TAG_MAP = {
     # 名词类 → NOUN
-    "n": "NOUN", "nr": "NOUN", "nrfg": "NOUN", "nrt": "NOUN",
-    "ns": "NOUN", "nt": "NOUN", "nz": "NOUN",
+    "n": "NOUN",
+    "nr": "NOUN",
+    "nrfg": "NOUN",
+    "nrt": "NOUN",
+    "ns": "NOUN",
+    "nt": "NOUN",
+    "nz": "NOUN",
     "ng": "NOUN",
     # 动词类 → VERB
-    "v": "VERB", "vd": "VERB", "vg": "VERB", "vi": "VERB",
-    "vn": "VERB", "vq": "VERB",
+    "v": "VERB",
+    "vd": "VERB",
+    "vg": "VERB",
+    "vi": "VERB",
+    "vn": "VERB",
+    "vq": "VERB",
     # 形容词 → ADJ
-    "a": "ADJ", "ad": "ADJ", "an": "ADJ", "ag": "ADJ",
+    "a": "ADJ",
+    "ad": "ADJ",
+    "an": "ADJ",
+    "ag": "ADJ",
     # 副词 → ADV
-    "d": "ADV", "df": "ADV", "dg": "ADV",
+    "d": "ADV",
+    "df": "ADV",
+    "dg": "ADV",
     # 代词 → PRON
-    "r": "PRON", "rg": "PRON", "rr": "PRON", "rz": "PRON",
+    "r": "PRON",
+    "rg": "PRON",
+    "rr": "PRON",
+    "rz": "PRON",
     # 助词 → AUX
-    "u": "AUX", "ud": "AUX", "ug": "AUX", "uj": "AUX",
-    "ul": "AUX", "uv": "AUX", "uz": "AUX",
+    "u": "AUX",
+    "ud": "AUX",
+    "ug": "AUX",
+    "uj": "AUX",
+    "ul": "AUX",
+    "uv": "AUX",
+    "uz": "AUX",
     # 连词 → CONJ
     "c": "CONJ",
     # 数词 → NUM
-    "m": "NUM", "mg": "NUM", "mq": "NUM",
+    "m": "NUM",
+    "mg": "NUM",
+    "mq": "NUM",
     # 量词 → QUANT
     "q": "QUANT",
     # 介词 → ADP
     "p": "ADP",
     # 时间词 → TIME
-    "t": "TIME", "tg": "TIME",
+    "t": "TIME",
+    "tg": "TIME",
     # 方位词 → LOC
     "f": "LOC",
     # 叹词 → INTJ
@@ -60,7 +86,8 @@ _JIEBA_TAG_MAP = {
     # 拟声词 → ONOM
     "o": "ONOM",
     # 状态词 → STATE
-    "z": "STATE", "zg": "STATE",
+    "z": "STATE",
+    "zg": "STATE",
     # 区别词 → DIFF
     "b": "DIFF",
     # 处所词 → NOUN
@@ -68,9 +95,13 @@ _JIEBA_TAG_MAP = {
     # 语素 → MORPH
     "g": "MORPH",
     # 其他
-    "x": "OTHER", "y": "PUNCT",
-    "h": "PREFIX", "k": "SUFFIX",
-    "i": "IDIOM", "l": "IDIOM", "j": "ABBR",
+    "x": "OTHER",
+    "y": "PUNCT",
+    "h": "PREFIX",
+    "k": "SUFFIX",
+    "i": "IDIOM",
+    "l": "IDIOM",
+    "j": "ABBR",
 }
 
 # 虚词标签集合（用于 function_word_ratio）
@@ -86,39 +117,31 @@ _CONTENT_POS_NV = {"NOUN", "VERB"}
 
 _FALLBACK_POS_PATTERNS = {
     "NOUN": re.compile(
-        r'(?:修士|仙人|妖兽|灵气|丹药|法术|功法|道|剑|阵|山|水|天|地'
-        r'|人|手|眼|心|头|身|脸|声|光|影|血|火|风|云|雷|电'
-        r'|世界|力量|时间|空间|修炼|境界|宗门|弟子|师父|师兄弟)'
+        r"(?:修士|仙人|妖兽|灵气|丹药|法术|功法|道|剑|阵|山|水|天|地"
+        r"|人|手|眼|心|头|身|脸|声|光|影|血|火|风|云|雷|电"
+        r"|世界|力量|时间|空间|修炼|境界|宗门|弟子|师父|师兄弟)"
     ),
     "VERB": re.compile(
-        r'(?:修炼|突破|攻击|防御|飞行|施展|释放|运转|凝聚|吸收|打坐'
-        r'|走|跑|说|道|看|想|来|去|做|给|让|使|拿|放'
-        r'|出现|消失|战斗|出手|爆发|斩杀|得到|成为|发现|知道)'
+        r"(?:修炼|突破|攻击|防御|飞行|施展|释放|运转|凝聚|吸收|打坐"
+        r"|走|跑|说|道|看|想|来|去|做|给|让|使|拿|放"
+        r"|出现|消失|战斗|出手|爆发|斩杀|得到|成为|发现|知道)"
     ),
     "ADJ": re.compile(
-        r'(?:强大|恐怖|惊人|可怕|神秘|古老|巨大|渺小|危险|美丽|丑陋'
-        r'|冷|热|快|慢|好|坏|多|少|大|小|强|弱)'
+        r"(?:强大|恐怖|惊人|可怕|神秘|古老|巨大|渺小|危险|美丽|丑陋"
+        r"|冷|热|快|慢|好|坏|多|少|大|小|强|弱)"
     ),
-    "PRON": re.compile(
-        r'(?:他|她|它|我|你|您|我们|你们|他们|她们|自己|自身|彼此|其)'
-    ),
+    "PRON": re.compile(r"(?:他|她|它|我|你|您|我们|你们|他们|她们|自己|自身|彼此|其)"),
     "ADV": re.compile(
-        r'(?:忽然|突然|渐渐|逐渐|已经|正在|一直|总是|终于|仍然'
-        r'|非常|很|更|最|也|还|就|才|都|只)'
+        r"(?:忽然|突然|渐渐|逐渐|已经|正在|一直|总是|终于|仍然"
+        r"|非常|很|更|最|也|还|就|才|都|只)"
     ),
-    "AUX": re.compile(
-        r'(?:的|了|着|过|得|地|之|所|被|把|将|以|而|与|和|或)'
-    ),
-    "CONJ": re.compile(
-        r'(?:但是|然而|虽然|如果|因为|所以|于是|而且|或者|还是|只是|甚至|并且)'
-    ),
+    "AUX": re.compile(r"(?:的|了|着|过|得|地|之|所|被|把|将|以|而|与|和|或)"),
+    "CONJ": re.compile(r"(?:但是|然而|虽然|如果|因为|所以|于是|而且|或者|还是|只是|甚至|并且)"),
     "NUM": re.compile(
-        r'(?:一|二|三|四|五|六|七|八|九|十|百|千|万|亿'
-        r'|[一二三四五六七八九十百千万亿])'
+        r"(?:一|二|三|四|五|六|七|八|九|十|百|千|万|亿"
+        r"|[一二三四五六七八九十百千万亿])"
     ),
-    "ADP": re.compile(
-        r'(?:在|从|到|向|往|朝|比|跟|对|为|给|替|于|以|将|把|被|叫|让)'
-    ),
+    "ADP": re.compile(r"(?:在|从|到|向|往|朝|比|跟|对|为|给|替|于|以|将|把|被|叫|让)"),
 }
 
 
@@ -174,9 +197,9 @@ class NLPEngine:
         if not text:
             return []
         if self._available:
-            cut_mode = True if mode == "search" else False
+            cut_mode = mode == "search"
             return list(jieba.tokenize(text, mode=cut_mode))
-        # fallback: 逐字分割
+        # fallback：逐字分割
         return [(c, i, i + 1) for i, c in enumerate(text)]
 
     # ── POS 分布 ──────────────────────────────────────────────────────
@@ -221,8 +244,10 @@ class NLPEngine:
         tagged = self.pos_tag(text)
         if len(tagged) < 2:
             return {
-                "bigram_counts": {}, "bigram_probabilities": {},
-                "bigram_entropy": 0.0, "conditional_entropy": {},
+                "bigram_counts": {},
+                "bigram_probabilities": {},
+                "bigram_entropy": 0.0,
+                "conditional_entropy": {},
                 "top_bigrams": [],
             }
 
@@ -267,9 +292,7 @@ class NLPEngine:
             "bigram_probabilities": probabilities,
             "bigram_entropy": round(joint_entropy, 4),
             "conditional_entropy": cond_entropy,
-            "top_bigrams": [
-                (bg, cnt) for bg, cnt in bigrams.most_common(30)
-            ],
+            "top_bigrams": [(bg, cnt) for bg, cnt in bigrams.most_common(30)],
         }
 
     def get_noun_verb_ratio(self, text: str) -> float:
@@ -286,9 +309,7 @@ class NLPEngine:
         """虚词占比（AUX + ADP + CONJ + PRON）"""
         dist = self.get_pos_distribution(text)
         ratios = dist.get("ratios", {})
-        return round(
-            sum(ratios.get(tag, 0) for tag in _FUNCTION_POS), 4
-        )
+        return round(sum(ratios.get(tag, 0) for tag in _FUNCTION_POS), 4)
 
     # ── 可读性评分 ────────────────────────────────────────────────────
 
@@ -313,41 +334,34 @@ class NLPEngine:
             return {"language": "unknown", "error": "empty text"}
 
         # 检测语言：中文字符占比
-        chinese_chars = sum(1 for c in text if '一' <= c <= '鿿')
-        total_chars = len(text.replace('\n', '').replace('\r', '').replace(' ', ''))
+        chinese_chars = sum(1 for c in text if "一" <= c <= "鿿")
+        total_chars = len(text.replace("\n", "").replace("\r", "").replace(" ", ""))
         chinese_ratio = chinese_chars / max(total_chars, 1)
 
         if chinese_ratio > 0.3:
             return self._readability_zh(text)
-        else:
-            return self._readability_en(text)
+        return self._readability_en(text)
 
     def _readability_zh(self, text: str) -> dict:
         """中文可读性指标。"""
         # 分句（按句末标点）
-        sentences = [s.strip() for s in re.split(r'[。！？!?\n]+', text) if s.strip()]
+        sentences = [s.strip() for s in re.split(r"[。！？!?\n]+", text) if s.strip()]
         sent_lens = [len(s) for s in sentences]
 
         avg_sent_len = round(mean_or_zero(sent_lens), 1)
         max_sent_len = max(sent_lens) if sent_lens else 0
-        short_ratio = round(
-            sum(1 for l in sent_lens if l <= 10) / max(len(sent_lens), 1), 4
-        )
+        short_ratio = round(sum(1 for ln in sent_lens if ln <= 10) / max(len(sent_lens), 1), 4)
 
         # 难词比：≥4字词（分词后）
         words = self.segment(text)
         total_words = len(words)
-        difficult = sum(1 for w in words if len(w) >= 4 and any(
-            '一' <= c <= '鿿' for c in w
-        ))
+        difficult = sum(1 for w in words if len(w) >= 4 and any("一" <= c <= "鿿" for c in w))
         difficult_ratio = round(difficult / max(total_words, 1), 4)
 
         # 汉字密度
-        zh_chars = sum(1 for c in text if '一' <= c <= '鿿')
-        all_text = text.replace('\n', '').replace('\r', '').replace(' ', '')
-        char_density = round(
-            zh_chars / max(len(all_text), 1), 4
-        )
+        zh_chars = sum(1 for c in text if "一" <= c <= "鿿")
+        all_text = text.replace("\n", "").replace("\r", "").replace(" ", "")
+        char_density = round(zh_chars / max(len(all_text), 1), 4)
 
         return {
             "language": "zh",
@@ -363,7 +377,7 @@ class NLPEngine:
     def _readability_en(self, text: str) -> dict:
         """英文可读性指标（Flesch-Kincaid, SMOG, Gunning Fog）。"""
         # 分句
-        sentences = [s.strip() for s in re.split(r'[.!?\n]+', text) if s.strip()]
+        sentences = [s.strip() for s in re.split(r"[.!?\n]+", text) if s.strip()]
         # 分词
         words = [w for w in re.findall(r"[a-zA-Z]+", text) if w]
         # 音节数（近似）
@@ -379,26 +393,19 @@ class NLPEngine:
         avg_sent_len = round(total_words / total_sentences, 1)
 
         # Flesch-Kincaid Grade Level
-        # FK = 0.39 * (words/sentences) + 11.8 * (syllables/words) - 15.59
         fk_grade = round(
-            0.39 * (total_words / total_sentences)
-            + 11.8 * (total_syllables / total_words) - 15.59, 1
+            0.39 * (total_words / total_sentences) + 11.8 * (total_syllables / total_words) - 15.59,
+            1,
         )
 
         # SMOG
-        # SMOG = 1.043 * sqrt(30 * (polysyllables/sentences)) + 3.1291
         polysyllable_count = sum(1 for s in syllables if s >= 3)
-        smog = round(
-            1.043 * math.sqrt(polysyllable_count * 30.0 / total_sentences) + 3.1291, 1
-        )
+        smog = round(1.043 * math.sqrt(polysyllable_count * 30.0 / total_sentences) + 3.1291, 1)
 
         # Gunning Fog Index
-        # GFI = 0.4 * [(words/sentences) + 100 * (complex_words/words)]
-        # complex_words = 3+ syllables
         complex_count = polysyllable_count
         gfi = round(
-            0.4 * ((total_words / total_sentences)
-                   + 100.0 * (complex_count / total_words)), 1
+            0.4 * ((total_words / total_sentences) + 100.0 * (complex_count / total_words)), 1
         )
 
         return {
@@ -432,10 +439,10 @@ class NLPEngine:
             else:
                 prev_vowel = False
         # 结尾 e 不发音
-        if word.endswith('e') and count > 1:
+        if word.endswith("e") and count > 1:
             count -= 1
         # 末尾 le 特殊情况
-        if word.endswith('le') and len(word) > 2 and word[-3] not in vowels:
+        if word.endswith("le") and len(word) > 2 and word[-3] not in vowels:
             count += 1
         return max(1, count)
 
@@ -447,7 +454,7 @@ class NLPEngine:
         result = []
         buf = ""
         for ch in text:
-            if '一' <= ch <= '鿿' or '㐀' <= ch <= '䶿':
+            if "一" <= ch <= "鿿" or "㐀" <= ch <= "䶿":
                 buf += ch
             else:
                 if buf:
@@ -494,7 +501,7 @@ class NLPEngine:
 # 模块级便捷函数（自动管理单例）
 # ═══════════════════════════════════════════════════════════════════════════
 
-_engine: Optional[NLPEngine] = None
+_engine: NLPEngine | None = None
 
 
 def get_engine() -> NLPEngine:

@@ -141,54 +141,69 @@ chapter_2 = """
 """
 
 if __name__ == "__main__":
-    import sys; sys.path.insert(0,'.')
+    import sys
+
+    sys.path.insert(0, ".")
     from fastapi.testclient import TestClient
+
     from bridge.api_server import app
+
     client = TestClient(app)
 
     # 第1章在文件开头定义，直接引用
 
     # 用第1章的项目继续
-    r = client.post('/import-from-pwa', json={
-        'premise':'洛阳星港的罪忆水晶修复师陈默，被卷入失乐园协议阴谋',
-        'unit_text':'陈默在洛阳星港B-7层修复一块七层加密的罪忆水晶，看到了一段不该看到的记忆。',
-        'characters':[{'name':'陈默','role':'罪忆水晶修复师'},{'name':'曹渊','role':'神秘买家/安全顾问'},{'name':'黑衣人','role':'星域安全局特工'}],
-    })
-    pid = r.json()['project_id']
-    print(f'项目: {pid[:12]}...')
+    r = client.post(
+        "/import-from-pwa",
+        json={
+            "premise": "洛阳星港的罪忆水晶修复师陈默，被卷入失乐园协议阴谋",
+            "unit_text": "陈默在洛阳星港B-7层修复一块七层加密的罪忆水晶，看到了一段不该看到的记忆。",
+            "characters": [
+                {"name": "陈默", "role": "罪忆水晶修复师"},
+                {"name": "曹渊", "role": "神秘买家/安全顾问"},
+                {"name": "黑衣人", "role": "星域安全局特工"},
+            ],
+        },
+    )
+    pid = r.json()["project_id"]
+    print(f"项目: {pid[:12]}...")
 
     # 先提第1章（建立KG状态）
     # 第1章在文件开头定义，直接引用——不存在循环导入
-    chapter_1_text = chapter_1
-    r = client.post(f'/project/{pid}/submit-chapter', json={'project_id':pid, 'text':chapter_1_text})
+    chapter_1_text = chapter_1  # noqa: F821  # 示例脚本：chapter_1 由运行环境注入（见 tests/chapter_1.py）
+    r = client.post(
+        f"/project/{pid}/submit-chapter", json={"project_id": pid, "text": chapter_1_text}
+    )
     d = r.json()
-    print(f'第1章: submitted={d["submitted"]}, score={d["overall_score"]}')
-    for g in d.get('gate_results',[]):
-        if g['level'] in ('WARN','BLOCK'):
-            print(f'  [{g["level"]}] {g["gate_id"]}: {g.get("message","")[:50]}')
+    print(f"第1章: submitted={d['submitted']}, score={d['overall_score']}")
+    for g in d.get("gate_results", []):
+        if g["level"] in ("WARN", "BLOCK"):
+            print(f"  [{g['level']}] {g['gate_id']}: {g.get('message', '')[:50]}")
 
     # 提第2章
-    r = client.post(f'/project/{pid}/submit-chapter', json={'project_id':pid, 'text':chapter_2})
+    r = client.post(f"/project/{pid}/submit-chapter", json={"project_id": pid, "text": chapter_2})
     d2 = r.json()
-    print(f'第2章: submitted={d2["submitted"]}, score={d2["overall_score"]}')
-    for g in d2.get('gate_results',[]):
-        if g['level'] in ('WARN','BLOCK'):
-            print(f'  [{g["level"]}] {g["gate_id"]}: {g.get("message","")[:50]}')
+    print(f"第2章: submitted={d2['submitted']}, score={d2['overall_score']}")
+    for g in d2.get("gate_results", []):
+        if g["level"] in ("WARN", "BLOCK"):
+            print(f"  [{g['level']}] {g['gate_id']}: {g.get('message', '')[:50]}")
 
     # 建议
-    r = client.post(f'/project/{pid}/suggestions', json={'project_id':pid})
+    r = client.post(f"/project/{pid}/suggestions", json={"project_id": pid})
     sug = r.json()
-    print(f'\n续写建议 ({len(sug["suggestions"])}条):')
-    for s in sug['suggestions'][:3]:
-        txt = s.get('text','')[:60]
-        print(f'  → {txt}')
+    print(f"\n续写建议 ({len(sug['suggestions'])}条):")
+    for s in sug["suggestions"][:3]:
+        txt = s.get("text", "")[:60]
+        print(f"  → {txt}")
 
     # 心智网格
-    r = client.get(f'/project/{pid}/mind-grid')
+    r = client.get(f"/project/{pid}/mind-grid")
     mg = r.json()
-    print(f'\n心智网格: {list(mg["characters"].keys())}, {len(mg.get("tension_points",[]))}个张力点')
+    print(
+        f"\n心智网格: {list(mg['characters'].keys())}, {len(mg.get('tension_points', []))}个张力点"
+    )
 
-    wc1 = len(chapter_1.replace('\n','').replace(' ',''))
-    wc2 = len(chapter_2.replace('\n','').replace(' ',''))
-    print(f'\n📊 字数: 第1章={wc1}字, 第2章={wc2}字, 合计={wc1+wc2}字')
-    print('🎉 第2章《因果》完成！')
+    wc1 = len(chapter_1.replace("\n", "").replace(" ", ""))  # noqa: F821  # 同注入的 chapter_1
+    wc2 = len(chapter_2.replace("\n", "").replace(" ", ""))
+    print(f"\n📊 字数: 第1章={wc1}字, 第2章={wc2}字, 合计={wc1 + wc2}字")
+    print("🎉 第2章《因果》完成！")

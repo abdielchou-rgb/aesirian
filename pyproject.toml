@@ -39,8 +39,27 @@ python_files = ["test_*.py"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
-select = ["E", "F", "I", "UP", "B", "C4", "SIM", "T20", "PTH", "ERA", "RET", "ARG", "FLY", "NPY", "PERF", "TRY", "TID", "LOG"]
-ignore = ["S101", "TRY003", "ARG001", "ARG002"]
+
+[tool.ruff.lint]
+# 说明（0.2.1 全量 gate 基线）：
+# - 移出 select：T20(print)/PTH(pathlib) —— 项目采用 print+os.path 既有风格，
+#   CONTRIBUTING 已说明；专项迁移列入后续技术债。
+# - ignore 追加：E501(长字符串/数据行不随 format 断行)、E402(顶层 sys.path+延迟导入为独立运行所需，
+#   遍布 core 入口/tools/mcp)、F403(registry 星号再导出)。
+select = ["E", "F", "I", "UP", "B", "C4", "SIM", "ERA", "RET", "ARG", "FLY", "NPY", "PERF", "TRY", "TID", "LOG"]
+ignore = ["S101", "TRY003", "ARG001", "ARG002", "E501", "E402", "F403"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = [
+    "fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body",
+    "fastapi.Header", "fastapi.Cookie", "fastapi.Form", "fastapi.File",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py 承担公共再导出（registry/包 API）
+"**/__init__.py" = ["F401", "F405"]
+# wenjian 门禁：GateResult 仅在 PEP563 延迟注解中出现（运行期仅 base.py 构造，已正确导入）
+"core/wenjian/audit/gates/*.py" = ["F821"]
 
 [tool.mypy]
 python_version = "3.11"

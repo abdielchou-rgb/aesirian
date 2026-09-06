@@ -3,9 +3,11 @@
 直调 mcp_server_fast 暴露的 2 个工具（FastMCP 装饰保留原函数签名）。
 Run: python -X utf8 -m pytest tests/test_four_cards_mcp.py -v
 """
+
 import asyncio
 
 import pytest
+from pydantic import ValidationError
 
 import mcp_server_fast as server
 from mcp_server_fast import AssembleFromSampleInput, EditFourCardsInput
@@ -40,7 +42,7 @@ class TestAssembleTool:
         assert p["sample"]["transportation_score"] > 0
 
     def test_assemble_rejects_short_text(self):
-        with pytest.raises(Exception):
+        with pytest.raises(ValidationError):
             run(server.assemble_from_sample_story(AssembleFromSampleInput(text="短")))
 
 
@@ -51,11 +53,20 @@ class TestEditTool:
 
     def test_edit_lie_produces_fanout_and_rulings(self):
         p = self._assemble()
-        r1 = run(server.edit_four_cards(EditFourCardsInput(
-            project=p,
-            edit={"card": "biographies", "index": 0, "field": "lie",
-                  "before": p["biographies"][0]["lie"], "after": "交出真心的人才会被记住"},
-        )))
+        r1 = run(
+            server.edit_four_cards(
+                EditFourCardsInput(
+                    project=p,
+                    edit={
+                        "card": "biographies",
+                        "index": 0,
+                        "field": "lie",
+                        "before": p["biographies"][0]["lie"],
+                        "after": "交出真心的人才会被记住",
+                    },
+                )
+            )
+        )
         diffs = r1["diffs"]
         targets = {d["target_card"] for d in diffs}
         assert {"framework", "chapters", "sample"} <= targets
@@ -63,12 +74,21 @@ class TestEditTool:
 
         # 第二轮：携带上一轮 project（内含 pending diffs）裁决接受其一
         target_id = diffs[0]["id"]
-        r2 = run(server.edit_four_cards(EditFourCardsInput(
-            project=r1["project"],
-            edit={"card": "biographies", "index": 0, "field": "lie",
-                  "before": "x", "after": "y"},
-            decisions=[{"id": target_id, "action": "accept"}],
-        )))
+        r2 = run(
+            server.edit_four_cards(
+                EditFourCardsInput(
+                    project=r1["project"],
+                    edit={
+                        "card": "biographies",
+                        "index": 0,
+                        "field": "lie",
+                        "before": "x",
+                        "after": "y",
+                    },
+                    decisions=[{"id": target_id, "action": "accept"}],
+                )
+            )
+        )
         pending = {d["id"]: d["status"] for d in r2["project"]["pending_diffs"]}
         assert pending[target_id] == "accepted"
         # 其余新批 diff 仍是 pending
@@ -77,13 +97,18 @@ class TestEditTool:
 
     def test_edit_unknown_card_returns_empty(self):
         p = self._assemble()
-        r = run(server.edit_four_cards(EditFourCardsInput(
-            project=p,
-            edit={"card": "nope", "field": "x", "before": "", "after": "y"},
-        )))
+        r = run(
+            server.edit_four_cards(
+                EditFourCardsInput(
+                    project=p,
+                    edit={"card": "nope", "field": "x", "before": "", "after": "y"},
+                )
+            )
+        )
         assert r["diffs"] == [] and r["pending"] == 0
 
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__, "-v", "-s"])

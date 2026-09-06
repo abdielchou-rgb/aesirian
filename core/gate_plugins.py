@@ -6,12 +6,12 @@ Supports hot-reload, isolation, priority ordering, and dependency injection.
 """
 
 from __future__ import annotations
+
+import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Any, Type
-import inspect
-import logging
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -23,13 +23,14 @@ class GateLevel(Enum):
 
 
 class GatePhase(Enum):
-    PRE_GENERATION = "pre_generation"   # G1-G5
-    POST_CHAPTER = "post_chapter"       # G6-G10
+    PRE_GENERATION = "pre_generation"  # G1-G5
+    POST_CHAPTER = "post_chapter"  # G6-G10
 
 
 @dataclass
 class GateContext:
     """统一的门禁上下文 - 所有门禁共享的输入"""
+
     # 文本内容
     text: str = ""
     chapter_number: int = 0
@@ -133,6 +134,7 @@ class GateContext:
 @dataclass
 class GateResult:
     """门禁检查结果"""
+
     gate_id: str
     gate_name: str
     level: GateLevel
@@ -190,7 +192,7 @@ class GatePlugin(ABC):
             ):
                 return True, f"结构门禁需跨章数据（缺: {', '.join(self.requires_context[:3])}）"
             if cond == "progression" and ctx.chapter_number < self.config.get("min_chapter", 0):
-                return True, f"该门禁需至少第{self.config.get('min_chapter', 0)+1}章上下文"
+                return True, f"该门禁需至少第{self.config.get('min_chapter', 0) + 1}章上下文"
         return False, ""
 
     def pass_result(self, message: str = "", detail: str = "", suggestion: str = "") -> GateResult:
@@ -239,15 +241,16 @@ class GatePlugin(ABC):
 
 # ─── Plugin Registry ───
 
+
 class GateRegistry:
     """门禁注册表 - 管理所有门禁插件"""
 
     def __init__(self):
         self._plugins: dict[str, GatePlugin] = {}
-        self._plugin_classes: dict[str, Type[GatePlugin]] = {}
+        self._plugin_classes: dict[str, type[GatePlugin]] = {}
         self._initialized = False
 
-    def register(self, plugin_class: Type[GatePlugin], config: dict = None) -> GatePlugin:
+    def register(self, plugin_class: type[GatePlugin], config: dict = None) -> GatePlugin:
         """注册门禁插件类"""
         instance = plugin_class(config)
         instance.set_dependencies(**self._dependencies)
@@ -261,7 +264,7 @@ class GateRegistry:
         self._plugins[instance.gate_id] = instance
         logger.debug(f"Registered gate instance: {instance.gate_id}")
 
-    def get(self, gate_id: str) -> Optional[GatePlugin]:
+    def get(self, gate_id: str) -> GatePlugin | None:
         return self._plugins.get(gate_id)
 
     def get_all(self) -> list[GatePlugin]:
@@ -287,6 +290,7 @@ gate_registry = GateRegistry()
 
 # ─── Decorator for Easy Registration ───
 
+
 def gate_plugin(
     gate_id: str,
     gate_name: str,
@@ -297,6 +301,7 @@ def gate_plugin(
     skip_conditions: list[str] = None,
 ):
     """装饰器：将函数注册为门禁插件"""
+
     def decorator(func):
         class _FunctionGate(GatePlugin):
             gate_id = gate_id
@@ -310,9 +315,6 @@ def gate_plugin(
             def evaluate(self, ctx: GateContext) -> GateResult:
                 return func(ctx, self)
 
-        # 使用函数名作为默认 gate_name
-        gate_name = getattr(func, "__name__", gate_id).replace("_", " ").title()
-
         # 实例化并注册
         plugin = _FunctionGate()
         gate_registry.register_instance(plugin)
@@ -323,8 +325,10 @@ def gate_plugin(
 
 # ─── Built-in Gate Implementations ───
 
+
 class G1FactConsistency(GatePlugin):
     """G1 事实一致性"""
+
     gate_id = "G1"
     gate_name = "事实一致性"
     phase = GatePhase.PRE_GENERATION
@@ -357,6 +361,7 @@ class G1FactConsistency(GatePlugin):
 
 class G2BeliefConsistency(GatePlugin):
     """G2 信念一致性"""
+
     gate_id = "G2"
     gate_name = "信念一致性"
     phase = GatePhase.PRE_GENERATION
@@ -394,6 +399,7 @@ class G2BeliefConsistency(GatePlugin):
 
 class G9DeAIDetection(GatePlugin):
     """G9 去AI化检测"""
+
     gate_id = "G9"
     gate_name = "去AI化检测"
     phase = GatePhase.POST_CHAPTER
@@ -401,10 +407,30 @@ class G9DeAIDetection(GatePlugin):
     priority = 90
     requires_context = ["text"]
 
-    AI_MARKERS = ["然而", "值得注意的是", "不可否认", "不出所料", "愈发",
-                  "毫无疑问", "显而易见", "值得一提的是", "令人惊讶的是"]
+    AI_MARKERS = [
+        "然而",
+        "值得注意的是",
+        "不可否认",
+        "不出所料",
+        "愈发",
+        "毫无疑问",
+        "显而易见",
+        "值得一提的是",
+        "令人惊讶的是",
+    ]
     HEDGE_WORDS = ["似乎", "可能", "或许", "大概", "某种程度上", "一定程度上", "在某种意义上"]
-    TRANSITION_WORDS = ["然而", "不过", "与此同时", "突然", "随即", "接着", "然后", "可是", "但是", "却"]
+    TRANSITION_WORDS = [
+        "然而",
+        "不过",
+        "与此同时",
+        "突然",
+        "随即",
+        "接着",
+        "然后",
+        "可是",
+        "但是",
+        "却",
+    ]
 
     def evaluate(self, ctx: GateContext) -> GateResult:
         text = ctx.text
@@ -421,8 +447,9 @@ class G9DeAIDetection(GatePlugin):
         # 句式重复
         openings = []
         import re
-        for s in sentences[:min(10, len(sentences))]:
-            match = re.match(r'^[一-鿿]{2,3}[着了的]', s)
+
+        for s in sentences[: min(10, len(sentences))]:
+            match = re.match(r"^[一-鿿]{2,3}[着了的]", s)
             if match:
                 openings.append(match.group(0))
 
@@ -444,6 +471,7 @@ class G9DeAIDetection(GatePlugin):
 
 
 # ─── Convenience Functions ───
+
 
 def create_gate_registry(kg=None, tom=None, reader=None) -> GateRegistry:
     """创建并配置门禁注册表"""
@@ -468,7 +496,9 @@ def create_gate_registry(kg=None, tom=None, reader=None) -> GateRegistry:
     return registry
 
 
-def run_gates(ctx: GateContext, phase: GatePhase, registry: GateRegistry = None) -> list[GateResult]:
+def run_gates(
+    ctx: GateContext, phase: GatePhase, registry: GateRegistry = None
+) -> list[GateResult]:
     """运行指定阶段的所有门禁"""
     registry = registry or gate_registry
     results = []
@@ -484,14 +514,16 @@ def run_gates(ctx: GateContext, phase: GatePhase, registry: GateRegistry = None)
             result = plugin.evaluate(ctx)
             results.append(result)
         except Exception as e:
-            logger.error(f"Gate {plugin.gate_id} evaluation failed: {e}")
-            results.append(GateResult(
-                gate_id=plugin.gate_id,
-                gate_name=plugin.gate_name,
-                level=plugin.severity,
-                passed=False,
-                message=f"evaluation error: {e}",
-            ))
+            logger.exception(f"Gate {plugin.gate_id} evaluation failed")
+            results.append(
+                GateResult(
+                    gate_id=plugin.gate_id,
+                    gate_name=plugin.gate_name,
+                    level=plugin.severity,
+                    passed=False,
+                    message=f"evaluation error: {e}",
+                )
+            )
 
     return results
 
@@ -500,7 +532,9 @@ def create_audit_report(chapter: int, results: list[GateResult]) -> dict:
     """创建审计报告"""
     passed = sum(1 for r in results if r.passed and not r.skipped)
     skipped = sum(1 for r in results if r.skipped)
-    blocked = sum(1 for r in results if not r.passed and not r.skipped and r.level == GateLevel.BLOCK)
+    blocked = sum(
+        1 for r in results if not r.passed and not r.skipped and r.level == GateLevel.BLOCK
+    )
     warned = sum(1 for r in results if not r.passed and not r.skipped and r.level == GateLevel.WARN)
 
     overall_score = 100

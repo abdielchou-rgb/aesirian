@@ -1,12 +1,16 @@
 """Anthropic model provider."""
 
 import json
+
 import httpx
+
 from .base import BaseModelProvider, ModelResponse
 
 
 class AnthropicProvider(BaseModelProvider):
-    def chat(self, system: str = "", messages=None, max_tokens=4096, temperature=0.3) -> ModelResponse:
+    def chat(
+        self, system: str = "", messages=None, max_tokens=4096, temperature=0.3
+    ) -> ModelResponse:
         if messages is None:
             messages = []
         body = {
@@ -30,7 +34,10 @@ class AnthropicProvider(BaseModelProvider):
             content=data["content"][0]["text"],
             model=data["model"],
             provider="anthropic",
-            usage={"input_tokens": data["usage"]["input_tokens"], "output_tokens": data["usage"]["output_tokens"]},
+            usage={
+                "input_tokens": data["usage"]["input_tokens"],
+                "output_tokens": data["usage"]["output_tokens"],
+            },
         )
 
     def chat_json(self, system: str = "", messages=None, max_tokens=4096, temperature=0.3) -> dict:
@@ -44,4 +51,5 @@ class AnthropicProvider(BaseModelProvider):
 
 
 from .base import registry as _reg
+
 _reg.register("anthropic", AnthropicProvider)

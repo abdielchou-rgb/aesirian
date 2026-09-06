@@ -16,9 +16,11 @@ class GateStatusLedger:
         return self.directory / f"{chapter_id}.json"
 
     def save_chapter(self, chapter_id: str, data: dict):
-        self._chapter_path(chapter_id).write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._chapter_path(chapter_id).write_text(
+            json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
 
-    def load_chapter(self, chapter_id: str) -> Optional[dict]:
+    def load_chapter(self, chapter_id: str) -> dict | None:
         p = self._chapter_path(chapter_id)
         if p.exists():
             return json.loads(p.read_text(encoding="utf-8"))

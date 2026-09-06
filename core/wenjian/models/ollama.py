@@ -1,7 +1,9 @@
 """Ollama model provider (local)."""
 
 import json
+
 import httpx
+
 from .base import BaseModelProvider, ModelResponse
 
 
@@ -9,7 +11,9 @@ class OllamaProvider(BaseModelProvider):
     def __init__(self, model: str, api_key: str = "", base_url: str = ""):
         super().__init__(model, api_key, base_url or "http://localhost:11434")
 
-    def chat(self, system: str = "", messages=None, max_tokens=4096, temperature=0.3) -> ModelResponse:
+    def chat(
+        self, system: str = "", messages=None, max_tokens=4096, temperature=0.3
+    ) -> ModelResponse:
         if messages is None:
             messages = []
         full_messages = [{"role": "system", "content": system}] + messages if system else messages
@@ -40,4 +44,5 @@ class OllamaProvider(BaseModelProvider):
 
 
 from .base import registry as _reg
+
 _reg.register("ollama", OllamaProvider)

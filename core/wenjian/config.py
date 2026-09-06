@@ -1,8 +1,6 @@
 """文鉴 WenJian 配置管理。"""
 
 import os
-from pathlib import Path
-from typing import Any, Dict, Optional, List
 from dataclasses import dataclass, field
 
 
@@ -10,8 +8,8 @@ from dataclasses import dataclass, field
 class ModelConfig:
     provider: str  # "anthropic" | "openai" | "ollama"
     model: str
-    api_key: Optional[str] = None
-    base_url: Optional[str] = None
+    api_key: str | None = None
+    base_url: str | None = None
 
 
 @dataclass
@@ -25,8 +23,8 @@ class ProjectConfig:
 @dataclass
 class WenJianConfig:
     project: ProjectConfig = field(default_factory=ProjectConfig)
-    models: Dict[str, ModelConfig] = field(default_factory=dict)
-    api_keys: Dict[str, str] = field(default_factory=dict)
+    models: dict[str, ModelConfig] = field(default_factory=dict)
+    api_keys: dict[str, str] = field(default_factory=dict)
     ledger_dir: str = "./wenjian_ledger"
     verbose: bool = False
 
@@ -48,6 +46,7 @@ class WenJianConfig:
     @classmethod
     def load(cls, path: str) -> "WenJianConfig":
         import yaml
+
         with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return cls.from_dict(data)
@@ -57,9 +56,10 @@ class WenJianConfig:
         if mc is None:
             raise ValueError(f"Model tier '{tier}' not configured")
         if not mc.api_key and mc.provider != "ollama":
-            mc.api_key = self.api_keys.get(mc.provider, os.environ.get(f"{mc.provider.upper()}_API_KEY", ""))
+            mc.api_key = self.api_keys.get(
+                mc.provider, os.environ.get(f"{mc.provider.upper()}_API_KEY", "")
+            )
         return mc
-
 
     DEFAULT_CONFIG_YAML = """project:
   title: "untitled"

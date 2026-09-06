@@ -2,20 +2,21 @@
 四卡双向传播 / 推导引擎测试（FOUR_CARD_PLAN 里程碑2/3/4 规则层）
 Run: python -X utf8 -m pytest tests/test_diff_engine.py -v
 """
+
 import pytest
 
 from core.diff_engine import (
+    PROPAGATION_TABLE,
+    CardEdit,
     Diff,
     DiffStatus,
-    PROPAGATION_TABLE,
     apply_diff,
     forward_derive,
     propose_diff,
-    CardEdit,
 )
 from core.four_cards import (
-    CharacterBiography,
     ChapterBeat,
+    CharacterBiography,
     FourCardProject,
     FrameworkBeat,
     SampleStory,
@@ -86,12 +87,19 @@ class TestForwardDerive:
 class TestProposeDiff:
     def _project(self):
         return FourCardProject(
-            biographies=[CharacterBiography(name="沈砚", want="夺回家族当铺",
-                                            wound="七岁被至亲当众遗弃",
-                                            lie="对人交心等于死于背叛",
-                                            change="最后把刀递给仇人")],
-            framework=[FrameworkBeat(index=1, goal="碾过谎言", value_turn="正→负"),
-                       FrameworkBeat(index=2, goal="逼到临界", value_turn="负→正")],
+            biographies=[
+                CharacterBiography(
+                    name="沈砚",
+                    want="夺回家族当铺",
+                    wound="七岁被至亲当众遗弃",
+                    lie="对人交心等于死于背叛",
+                    change="最后把刀递给仇人",
+                )
+            ],
+            framework=[
+                FrameworkBeat(index=1, goal="碾过谎言", value_turn="正→负"),
+                FrameworkBeat(index=2, goal="逼到临界", value_turn="负→正"),
+            ],
             chapters=[ChapterBeat(summary="发现当票", value_turn="正→负", causally_linked=False)],
             sample=SampleStory(text=SAMPLE_500, transportation_score=55.0),
         )
@@ -99,9 +107,16 @@ class TestProposeDiff:
     def test_anchor_edit_produces_fanout_diffs(self):
         """验收：改人物小传 lie → 自动生成框架 + 章节 + 试样故事 diff。"""
         p = self._project()
-        diffs = propose_diff(CardEdit(card="biographies", index=0, field="lie",
-                                      before="对人交心等于死于背叛",
-                                      after="交出真心的人才会被记住"), p)
+        diffs = propose_diff(
+            CardEdit(
+                card="biographies",
+                index=0,
+                field="lie",
+                before="对人交心等于死于背叛",
+                after="交出真心的人才会被记住",
+            ),
+            p,
+        )
         targets = {d.target_card for d in diffs}
         assert {"framework", "chapters", "sample"} <= targets
         for d in diffs:
@@ -112,14 +127,23 @@ class TestProposeDiff:
 
     def test_chapter_edit_proposes_framework(self):
         p = self._project()
-        diffs = propose_diff(CardEdit(card="chapters", index=0, field="summary",
-                                      before="发现当票", after="发现当票指向舅舅"), p)
+        diffs = propose_diff(
+            CardEdit(
+                card="chapters",
+                index=0,
+                field="summary",
+                before="发现当票",
+                after="发现当票指向舅舅",
+            ),
+            p,
+        )
         assert any(d.target_card == "framework" for d in diffs)
 
     def test_apply_accept_and_reject(self):
         p = self._project()
-        diffs = propose_diff(CardEdit(card="biographies", index=0, field="lie",
-                                      before="x", after="新的谎言"), p)
+        diffs = propose_diff(
+            CardEdit(card="biographies", index=0, field="lie", before="x", after="新的谎言"), p
+        )
         assert diffs
         target = diffs[0]
         assert apply_diff(p, target.id, accept=True)
@@ -147,4 +171,5 @@ class TestProposeDiff:
 
 if __name__ == "__main__":
     import pytest
+
     pytest.main([__file__, "-v", "-s"])

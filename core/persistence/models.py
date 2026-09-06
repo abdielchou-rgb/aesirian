@@ -1,15 +1,16 @@
 """
 Æsirian SQLModel ORM models — SQLite persistence for narrative projects
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
+
 
 def now_utc():
-    return datetime.now(timezone.utc)
-from typing import Optional, List
-import json
+    return datetime.now(UTC)
 
-from sqlmodel import SQLModel, Field, Relationship
-from sqlalchemy import Column, JSON, Text
+
+from sqlalchemy import JSON, Column, Text
+from sqlmodel import Field, Relationship, SQLModel
 
 
 class Project(SQLModel, table=True):
@@ -23,12 +24,24 @@ class Project(SQLModel, table=True):
     updated_at: datetime = Field(default_factory=now_utc)
     style_profile_json: str = Field(default="{}")
 
-    chapters: List["Chapter"] = Relationship(back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
-    characters: List["CharacterRecord"] = Relationship(back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
-    world_elements: List["WorldElement"] = Relationship(back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
-    foreshadowings: List["Foreshadowing"] = Relationship(back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
-    style_fingerprints: List["StyleFingerprint"] = Relationship(back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
-    audit_reports: List["AuditReport"] = Relationship(back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    chapters: list["Chapter"] = Relationship(
+        back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    characters: list["CharacterRecord"] = Relationship(
+        back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    world_elements: list["WorldElement"] = Relationship(
+        back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    foreshadowings: list["Foreshadowing"] = Relationship(
+        back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    style_fingerprints: list["StyleFingerprint"] = Relationship(
+        back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
+    audit_reports: list["AuditReport"] = Relationship(
+        back_populates="project", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
 class Chapter(SQLModel, table=True):
@@ -43,7 +56,7 @@ class Chapter(SQLModel, table=True):
     created_at: datetime = Field(default_factory=now_utc)
     audit_report_json: str = Field(default="{}")
 
-    project: Optional[Project] = Relationship(back_populates="chapters")
+    project: Project | None = Relationship(back_populates="chapters")
 
 
 class CharacterRecord(SQLModel, table=True):
@@ -58,7 +71,7 @@ class CharacterRecord(SQLModel, table=True):
     goals_json: str = Field(default="[]")
     secrets_json: str = Field(default="[]")
 
-    project: Optional[Project] = Relationship(back_populates="characters")
+    project: Project | None = Relationship(back_populates="characters")
 
 
 # 兼容别名 — orchestrator 引用 Character
@@ -75,7 +88,7 @@ class WorldElement(SQLModel, table=True):
     description: str = Field(default="")
     properties_json: str = Field(default="{}")
 
-    project: Optional[Project] = Relationship(back_populates="world_elements")
+    project: Project | None = Relationship(back_populates="world_elements")
 
 
 class Foreshadowing(SQLModel, table=True):
@@ -87,9 +100,9 @@ class Foreshadowing(SQLModel, table=True):
     description: str = Field(default="")
     status: str = Field(default="open")  # open / resolved / abandoned
     created_at: datetime = Field(default_factory=now_utc)
-    resolved_at: Optional[datetime] = Field(default=None)
+    resolved_at: datetime | None = Field(default=None)
 
-    project: Optional[Project] = Relationship(back_populates="foreshadowings")
+    project: Project | None = Relationship(back_populates="foreshadowings")
 
 
 class StyleFingerprint(SQLModel, table=True):
@@ -107,29 +120,33 @@ class StyleFingerprint(SQLModel, table=True):
     conflict_distribution_json: str = Field(default="{}")
     updated_at: datetime = Field(default_factory=now_utc)
 
-    project: Optional[Project] = Relationship(back_populates="style_fingerprints")
+    project: Project | None = Relationship(back_populates="style_fingerprints")
 
 
 class AuditReport(SQLModel, table=True):
     """Audit report for a chapter"""
+
     __tablename__ = "audit_reports"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     project_id: str = Field(foreign_key="projects.id", index=True)
-    chapter_id: Optional[str] = Field(default=None, foreign_key="chapters.id")
+    chapter_id: str | None = Field(default=None, foreign_key="chapters.id")
     overall_score: int = Field(default=0)
     results_json: dict = Field(default_factory=dict, sa_column=Column(JSON))
     created_at: datetime = Field(default_factory=now_utc)
 
-    project: Optional[Project] = Relationship(back_populates="audit_reports")
-    gate_results: List["GateResult"] = Relationship(back_populates="audit_report", sa_relationship_kwargs={"cascade": "all, delete-orphan"})
+    project: Project | None = Relationship(back_populates="audit_reports")
+    gate_results: list["GateResult"] = Relationship(
+        back_populates="audit_report", sa_relationship_kwargs={"cascade": "all, delete-orphan"}
+    )
 
 
 class GateResult(SQLModel, table=True):
     """Individual gate result within an audit report"""
+
     __tablename__ = "gate_results"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     audit_report_id: int = Field(foreign_key="audit_reports.id", index=True)
     gate_id: str
     gate_name: str = Field(default="")
@@ -137,14 +154,15 @@ class GateResult(SQLModel, table=True):
     message: str = Field(default="")
     suggestion: str = Field(default="")
 
-    audit_report: Optional[AuditReport] = Relationship(back_populates="gate_results")
+    audit_report: AuditReport | None = Relationship(back_populates="gate_results")
 
 
 class StyleProfile(SQLModel, table=True):
     """Shareable style profile (marketplace)"""
+
     __tablename__ = "style_profiles"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     name: str
     description: str = Field(default="")
     author_id: str = Field(default="")
@@ -157,9 +175,10 @@ class StyleProfile(SQLModel, table=True):
 
 class PluginConfig(SQLModel, table=True):
     """Project-level plugin configuration"""
+
     __tablename__ = "plugin_configs"
 
-    id: Optional[int] = Field(default=None, primary_key=True)
+    id: int | None = Field(default=None, primary_key=True)
     project_id: str = Field(foreign_key="projects.id", index=True)
     plugin_id: str
     enabled: bool = Field(default=True)

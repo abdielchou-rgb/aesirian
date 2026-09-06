@@ -11,11 +11,12 @@ InkOS模式：write → assess → revise → reassess → (重试N次/取最优
 """
 
 from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Optional, Callable, Any
-from enum import Enum
 from datetime import datetime
-import copy
+from enum import Enum
+from typing import Any
 
 
 class AgentStep(Enum):
@@ -30,19 +31,20 @@ class AgentStep(Enum):
 
 
 class ReviewVerdict(Enum):
-    PASS = "pass"                # 通过
-    NEEDS_REVISION = "revise"    # 需要修订
-    FAIL = "fail"                # 彻底失败→回滚
+    PASS = "pass"  # 通过
+    NEEDS_REVISION = "revise"  # 需要修订
+    FAIL = "fail"  # 彻底失败→回滚
 
 
 @dataclass
 class ReviewResult:
     """评审结果"""
+
     step: AgentStep
     verdict: ReviewVerdict
-    score: float               # 0.0-1.0
+    score: float  # 0.0-1.0
     issues: list[str] = field(default_factory=list)
-    snapshot: Any = None       # 评审时的快照
+    snapshot: Any = None  # 评审时的快照
     passed_checks: int = 0
     total_checks: int = 0
 
@@ -50,11 +52,12 @@ class ReviewResult:
 @dataclass
 class ChapterSnapshot:
     """章节快照 — 用于回滚"""
+
     chapter: int
     text: str
-    tom_state: Any = None      # ToM引擎快照
-    kg_state: Any = None       # KG快照
-    reader_state: Any = None   # 读者模型状态
+    tom_state: Any = None  # ToM引擎快照
+    kg_state: Any = None  # KG快照
+    reader_state: Any = None  # 读者模型状态
     score: float = 0.0
     timestamp: str = field(default_factory=lambda: datetime.now().isoformat())
 
@@ -99,13 +102,10 @@ class AgentPipeline:
         best_score = 0.0
 
         # ── Phase 1: 写 ──
-        if self.write_fn:
-            raw_text = self.write_fn(context)
-        else:
-            raw_text = context.get('text', '')
+        raw_text = self.write_fn(context) if self.write_fn else context.get("text", "")
 
         # ── Phase 2: 标准化 ──
-        if self.callback('normalize'):
+        if self.callback("normalize"):
             raw_text = self._normalize(raw_text, context)
 
         # ── Phase 3: 评审循环 ──
@@ -119,7 +119,7 @@ class AgentPipeline:
             if result.score > best_score:
                 best_score = result.score
                 best_snapshot = ChapterSnapshot(
-                    chapter=context.get('chapter', 0),
+                    chapter=context.get("chapter", 0),
                     text=current_text,
                     score=result.score,
                 )
@@ -127,39 +127,40 @@ class AgentPipeline:
             # 判定
             if result.verdict == ReviewVerdict.PASS:
                 return {
-                    'status': 'committed',
-                    'text': current_text,
-                    'reviews': [r.to_dict() if hasattr(r, 'to_dict') else str(r) for r in self.history],
-                    'best_score': best_score,
-                    'attempts': attempt,
+                    "status": "committed",
+                    "text": current_text,
+                    "reviews": [
+                        r.to_dict() if hasattr(r, "to_dict") else str(r) for r in self.history
+                    ],
+                    "best_score": best_score,
+                    "attempts": attempt,
                 }
 
             if result.verdict == ReviewVerdict.FAIL or attempt >= self.max_retries:
                 # 回滚到最佳快照
                 if best_snapshot and self.rollback_enabled:
                     return {
-                        'status': 'rolled_back',
-                        'text': best_snapshot.text,
-                        'reviews': [str(r) for r in self.history],
-                        'best_score': best_score,
-                        'rollback_reason': f'经过{attempt+1}次修订仍未达标(最后得分{result.score:.2f})',
-                        'attempts': attempt + 1,
+                        "status": "rolled_back",
+                        "text": best_snapshot.text,
+                        "reviews": [str(r) for r in self.history],
+                        "best_score": best_score,
+                        "rollback_reason": f"经过{attempt + 1}次修订仍未达标(最后得分{result.score:.2f})",
+                        "attempts": attempt + 1,
                     }
-                else:
-                    # 无回滚选项时返回最后一次结果
-                    return {
-                        'status': 'best_effort',
-                        'text': current_text,
-                        'reviews': [str(r) for r in self.history],
-                        'best_score': best_score,
-                        'attempts': attempt + 1,
-                    }
+                # 无回滚选项时返回最后一次结果
+                return {
+                    "status": "best_effort",
+                    "text": current_text,
+                    "reviews": [str(r) for r in self.history],
+                    "best_score": best_score,
+                    "attempts": attempt + 1,
+                }
 
-            # NEEDS_REVISION: 修订
+            # 评审未通过则进入修订循环
             current_text = self._revise(current_text, result, context, attempt)
 
         # 不应到达这里
-        return {'status': 'unknown', 'text': current_text, 'reviews': [], 'best_score': 0.0}
+        return {"status": "unknown", "text": current_text, "reviews": [], "best_score": 0.0}
 
     def _assess(self, text: str, context: dict, attempt: int) -> ReviewResult:
         """执行评审"""
@@ -171,9 +172,11 @@ class AgentPipeline:
         score = min(1.0, word_count / 500)
         return ReviewResult(
             step=AgentStep.ASSESS,
-            verdict=ReviewVerdict.PASS if score >= self.pass_threshold else ReviewVerdict.NEEDS_REVISION,
+            verdict=ReviewVerdict.PASS
+            if score >= self.pass_threshold
+            else ReviewVerdict.NEEDS_REVISION,
             score=score,
-            issues=[] if score >= self.pass_threshold else ['文本长度不足'],
+            issues=[] if score >= self.pass_threshold else ["文本长度不足"],
         )
 
     def _revise(self, text: str, result: ReviewResult, context: dict, attempt: int) -> str:
@@ -184,8 +187,7 @@ class AgentPipeline:
 
     def _normalize(self, text: str, context: dict) -> str:
         """标准化文本长度"""
-        target_min = context.get('target_min_words', 500)
-        target_max = context.get('target_max_words', 3000)
+        target_min = context.get("target_min_words", 500)
         # 如果太短，填充；太长，截断
         word_count = len(text)
         if word_count < target_min:
@@ -200,11 +202,11 @@ class AgentPipeline:
     def get_summary(self) -> dict:
         """获取管线摘要"""
         if not self.history:
-            return {'status': 'no_runs'}
+            return {"status": "no_runs"}
         last = self.history[-1]
         return {
-            'total_attempts': len(self.history),
-            'final_verdict': last.verdict.value,
-            'best_score': max(r.score for r in self.history),
-            'issues': self.history[-1].issues if self.history else [],
+            "total_attempts": len(self.history),
+            "final_verdict": last.verdict.value,
+            "best_score": max(r.score for r in self.history),
+            "issues": self.history[-1].issues if self.history else [],
         }

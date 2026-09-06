@@ -4,24 +4,34 @@
 连接前端 Electron IDE 与后端 Python 引擎。
 持久化：使用 ProjectStore 作为单一数据源，每次请求按需重建运行时状态。
 """
-import sys, os
+
+import os
+import sys
+
 # 添加项目根目录到路径
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fastapi import FastAPI, HTTPException, Depends
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
-import uvicorn, json, tempfile
+import contextlib
+import tempfile
 
-from core.persistence.store import ProjectStore
-from core.orchestrator import Orchestrator
-from core.entity_extractor import EntityExtractor
-from core.consistency_gates import GateLevel
-from core.llm_engine import get_llm_engine, LLMSuggestion
-from core.export.exporter import export_project_markdown, export_project_epub, export_chapter_markdown
+import uvicorn
+from fastapi import Depends, FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
 from bridge.review_api import router as review_router
+from core.consistency_gates import GateLevel
+from core.entity_extractor import EntityExtractor
+from core.export.exporter import (
+    export_chapter_markdown,
+    export_project_epub,
+    export_project_markdown,
+)
+from core.llm_engine import get_llm_engine
+from core.orchestrator import Orchestrator
+from core.persistence.store import ProjectStore
 
 app = FastAPI(title="Æsirian Core API", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -46,18 +56,22 @@ def get_orchestrator() -> Orchestrator:
 
 # ─── Pydantic Schemas ───
 
+
 class ImportNSEFRequest(BaseModel):
     path: str
+
 
 class TextSubmitRequest(BaseModel):
     project_id: str
     text: str
+
 
 class BeliefUpdateRequest(BaseModel):
     project_id: str
     character: str
     proposition: str
     value: str | bool
+
 
 class ContinueSuggestionRequest(BaseModel):
     project_id: str
@@ -125,12 +139,14 @@ CHAPTER_1_SAMPLE = """陈默的指尖滑过水晶表面，六棱柱在暖黄色�
 
 他把水晶接入读数仪。"""
 
+
 @app.get("/chapter-1-sample")
 async def get_chapter_1():
     return CHAPTER_1_SAMPLE
 
 
 # ─── API Routes ───
+
 
 class NSEFDirectRequest(BaseModel):
     package_id: str = ""
@@ -143,13 +159,14 @@ class NSEFDirectRequest(BaseModel):
     tone: str = "温暖治愈"
     conflict: str = "关系冲突"
 
+
 @app.post("/import-from-pwa")
-async def import_from_pwa(req: NSEFDirectRequest,
-                         orch: Orchestrator = Depends(get_orchestrator)):
+async def import_from_pwa(req: NSEFDirectRequest, orch: Orchestrator = Depends(get_orchestrator)):
     """从Æsir PWA直接接收NSEF数据（免文件）"""
     try:
-        from nsef import NarrativeStatePackage, CharacterSeed, BeliefState, SecretState, GoalState
         import uuid
+
+        from nsef import CharacterSeed, NarrativeStatePackage
 
         # 构建 NSEF 包
         pkg = NarrativeStatePackage(
@@ -158,14 +175,16 @@ async def import_from_pwa(req: NSEFDirectRequest,
             unit_text=req.unit_text or "",
             characters=[
                 CharacterSeed(name=c.get("name", "角色"), role=c.get("role", ""))
-                for c in req.characters if isinstance(c, dict)
-            ] if req.characters else [
-                CharacterSeed(name="主角", role="")
-            ],
+                for c in req.characters
+                if isinstance(c, dict)
+            ]
+            if req.characters
+            else [CharacterSeed(name="主角", role="")],
             open_threads=[],
         )
         # 设置风格
-        from nsef import Tone, ConflictType
+        from nsef import ConflictType, Tone
+
         for t in Tone:
             if t.value == req.tone:
                 pkg.tone = t
@@ -176,9 +195,10 @@ async def import_from_pwa(req: NSEFDirectRequest,
                 break
 
         # 写入临时文件并导入
-        tmp = tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False, encoding='utf-8')
-        tmp.write(pkg.to_json())
-        tmp.close()
+        with tempfile.NamedTemporaryFile(
+            mode="w", suffix=".json", delete=False, encoding="utf-8"
+        ) as tmp:
+            tmp.write(pkg.to_json())
 
         project = orch.create_project_from_nsef(tmp.name)
         return {
@@ -189,34 +209,36 @@ async def import_from_pwa(req: NSEFDirectRequest,
             "mind_grid_url": f"http://127.0.0.1:8765/project/{project.project_id}/mind-grid",
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.post("/project/from-nsef")
-async def import_nsef(req: ImportNSEFRequest,
-                      orch: Orchestrator = Depends(get_orchestrator)):
+async def import_nsef(req: ImportNSEFRequest, orch: Orchestrator = Depends(get_orchestrator)):
     try:
         project = orch.create_project_from_nsef(req.path)
         return {
             "project_id": project.project_id,
             "title": project.title,
             "genre": project.genre,
-            "characters": [{"name": c.name, "id": c.character_id} for c in project.tom.get_all_characters()],
+            "characters": [
+                {"name": c.name, "id": c.character_id} for c in project.tom.get_all_characters()
+            ],
             "open_threads": [
                 {
                     "thread_id": t.thread_id,
                     "description": t.description,
                 }
                 for t in (project.kg.get_node_by_name("") or [])
-            ] if False else [],  # placeholder — NSEF注册的开端
+            ]
+            if False
+            else [],  # placeholder — NSEF注册的开端
         }
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.get("/project/{project_id}/mind-grid")
-async def get_mind_grid(project_id: str,
-                        orch: Orchestrator = Depends(get_orchestrator)):
+async def get_mind_grid(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -224,8 +246,7 @@ async def get_mind_grid(project_id: str,
 
 
 @app.post("/project/{project_id}/constraints")
-async def get_constraints(project_id: str,
-                          orch: Orchestrator = Depends(get_orchestrator)):
+async def get_constraints(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -233,8 +254,9 @@ async def get_constraints(project_id: str,
 
 
 @app.post("/project/{project_id}/submit-chapter")
-async def submit_chapter(project_id: str, req: TextSubmitRequest,
-                         orch: Orchestrator = Depends(get_orchestrator)):
+async def submit_chapter(
+    project_id: str, req: TextSubmitRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -251,7 +273,7 @@ async def submit_chapter(project_id: str, req: TextSubmitRequest,
             "identity_changes": context["identity_changes"],
             "events": context["events"],
             "movements": context["movements"],
-        }
+        },
     )
 
     # 如果有 BLOCK 级别门禁 → 拒绝提交
@@ -260,7 +282,9 @@ async def submit_chapter(project_id: str, req: TextSubmitRequest,
         return {
             "submitted": False,
             "gate_results": [r.to_dict() for r in gate_results],
-            "overall_score": max(0, 100 - sum(20 if r.level == GateLevel.BLOCK else 10 for r in gate_results)),
+            "overall_score": max(
+                0, 100 - sum(20 if r.level == GateLevel.BLOCK else 10 for r in gate_results)
+            ),
         }
 
     # 提交到完整管线
@@ -275,6 +299,7 @@ async def submit_chapter(project_id: str, req: TextSubmitRequest,
     chapters = orch.store.get_chapters(project_id)
     if chapters:
         import json as _json
+
         latest = max(chapters, key=lambda c: c.number)
         try:
             latest_report = _json.loads(latest.audit_report_json or "{}")
@@ -289,7 +314,7 @@ async def submit_chapter(project_id: str, req: TextSubmitRequest,
         "audit_results": [r.to_dict() for r in report.results],
         "cross_chapter": cross_chapter,
         "plugin_gates": _run_plugins_on_submit(req.text),
-        "summary": f"第{current_chapter}章提交完成，{len(report.results)}个审计提醒"
+        "summary": f"第{current_chapter}章提交完成，{len(report.results)}个审计提醒",
     }
 
 
@@ -297,31 +322,37 @@ def _run_plugins_on_submit(text: str) -> list[dict]:
     """#23: 提交时运行 gate 类插件（失败静默——插件不阻塞主线）"""
     try:
         from core.plugins import run_gate_plugins
+
         return run_gate_plugins(text)
     except Exception:
         return []
 
 
 @app.post("/project/{project_id}/validate")
-async def validate_text(project_id: str, req: TextSubmitRequest,
-                        orch: Orchestrator = Depends(get_orchestrator)):
+async def validate_text(
+    project_id: str, req: TextSubmitRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     context = EntityExtractor.to_gate_context(req.text)
-    results = project.gates.pre_generation_check(req.text, context={
-        "facts": context["facts"],
-        "char_actions": context["char_actions"],
-        "identity_changes": context["identity_changes"],
-        "events": context["events"],
-        "movements": context["movements"],
-    })
+    results = project.gates.pre_generation_check(
+        req.text,
+        context={
+            "facts": context["facts"],
+            "char_actions": context["char_actions"],
+            "identity_changes": context["identity_changes"],
+            "events": context["events"],
+            "movements": context["movements"],
+        },
+    )
     return {"gate_results": [r.to_dict() for r in results]}
 
 
 @app.post("/project/{project_id}/belief")
-async def update_belief(project_id: str, req: BeliefUpdateRequest,
-                        orch: Orchestrator = Depends(get_orchestrator)):
+async def update_belief(
+    project_id: str, req: BeliefUpdateRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -334,12 +365,13 @@ async def update_belief(project_id: str, req: BeliefUpdateRequest,
             ]
         }
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 @app.post("/project/{project_id}/suggestions")
-async def get_suggestions(project_id: str, _req: ContinueSuggestionRequest,
-                          orch: Orchestrator = Depends(get_orchestrator)):
+async def get_suggestions(
+    project_id: str, _req: ContinueSuggestionRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -369,12 +401,14 @@ async def get_suggestions(project_id: str, _req: ContinueSuggestionRequest,
     # 合并去重：LLM优先，规则补齐到至少5条
     all_suggestions = llm_suggestions + rule_suggestions
     if len(all_suggestions) < 3:
-        all_suggestions.append({
-            "type": "default",
-            "text": "继续推进当前场景，追踪角色信念变化",
-            "rationale": "系统追踪中",
-            "source": "基线规则",
-        })
+        all_suggestions.append(
+            {
+                "type": "default",
+                "text": "继续推进当前场景，追踪角色信念变化",
+                "rationale": "系统追踪中",
+                "source": "基线规则",
+            }
+        )
 
     return {
         "suggestions": all_suggestions[:7],
@@ -395,43 +429,53 @@ def _build_rule_suggestions(constraints: dict, trend: str) -> list[dict]:
         desc = tp.get("description", "")
         suggestion_text = tp.get("suggestion", "")
         text = f"「{desc[:30]}」— {suggestion_text[:30]}" if suggestion_text else desc[:40]
-        suggestions.append({
-            "type": "tension",
-            "text": text[:40],
-            "rationale": f"强度{tp.get('intensity',0):.1f}",
-            "source": "ToM张力检测",
-        })
+        suggestions.append(
+            {
+                "type": "tension",
+                "text": text[:40],
+                "rationale": f"强度{tp.get('intensity', 0):.1f}",
+                "source": "ToM张力检测",
+            }
+        )
 
-    for tendency in constraints.get("character_tendencies", [])[:2]:
-        suggestions.append({
+    suggestions.extend(
+        {
             "type": "character",
             "text": f"{tendency['character']}倾向：{tendency['action'][:25]}"[:40],
             "rationale": f"强度{tendency['strength']:.1f}",
             "source": "ToM行动推断",
-        })
+        }
+        for tendency in constraints.get("character_tendencies", [])[:2]
+    )
 
-    for pattern in constraints.get("recommended_patterns", [])[:2]:
-        suggestions.append({
+    suggestions.extend(
+        {
             "type": "pattern",
             "text": f"启用「{pattern}」叙事模式"[:40],
             "rationale": "近期未使用",
             "source": "冷却矩阵",
-        })
+        }
+        for pattern in constraints.get("recommended_patterns", [])[:2]
+    )
 
     if "↓" in trend:
-        suggestions.append({
-            "type": "reader",
-            "text": "读者沉浸度下降，建议引入新冲突或转折",
-            "rationale": "传输度走低",
-            "source": "读者模型",
-        })
+        suggestions.append(
+            {
+                "type": "reader",
+                "text": "读者沉浸度下降，建议引入新冲突或转折",
+                "rationale": "传输度走低",
+                "source": "读者模型",
+            }
+        )
     elif "↑" in trend:
-        suggestions.append({
-            "type": "reader",
-            "text": "读者沉浸度上升，保持当前节奏",
-            "rationale": "传输度走高",
-            "source": "读者模型",
-        })
+        suggestions.append(
+            {
+                "type": "reader",
+                "text": "读者沉浸度上升，保持当前节奏",
+                "rationale": "传输度走高",
+                "source": "读者模型",
+            }
+        )
 
     return suggestions
 
@@ -453,14 +497,16 @@ def _get_methodology_registry():
     if "reg" not in _METHODLOGY_CACHE:
         try:
             from core.strategy_registry_builder import build_registry
+
             _METHODLOGY_CACHE["reg"] = build_registry()
         except Exception:
             _METHODLOGY_CACHE["reg"] = None
     return _METHODLOGY_CACHE["reg"]
 
 
-def _annotate_methodology(project_id: str, suggestions: list[dict],
-                          orch: Orchestrator) -> list[dict]:
+def _annotate_methodology(
+    project_id: str, suggestions: list[dict], orch: Orchestrator
+) -> list[dict]:
     """为规则建议附加方法论出处（#13）
 
     source 已有引擎名；methodology 补全为 {name, source, description}
@@ -475,8 +521,11 @@ def _annotate_methodology(project_id: str, suggestions: list[dict],
                 nodes.setdefault("英雄之旅", n)
 
     # 张力/行动类建议 → 信念系统方法论节点
-    belief_nodes = [n for n in (reg.all_nodes() if reg else [])
-                    if n.family and "belief" in str(n.family.value).lower()]
+    belief_nodes = [
+        n
+        for n in (reg.all_nodes() if reg else [])
+        if n.family and "belief" in str(n.family.value).lower()
+    ]
     belief_node = belief_nodes[0] if belief_nodes else None
 
     for s in suggestions:
@@ -484,16 +533,24 @@ def _annotate_methodology(project_id: str, suggestions: list[dict],
         methodology = None
         # 冷却矩阵推荐的叙事模式名 → 直接匹配注册表节点名
         if s.get("type") == "pattern":
-            pattern = (s.get("text") or "").replace("启用「", "").replace("」叙事模式", "").strip("」「 ")
+            pattern = (
+                (s.get("text") or "").replace("启用「", "").replace("」叙事模式", "").strip("」「 ")
+            )
             node = nodes.get(pattern)
             if node:
-                methodology = {"name": node.name, "source": node.source,
-                               "description": (node.description or "")[:60]}
+                methodology = {
+                    "name": node.name,
+                    "source": node.source,
+                    "description": (node.description or "")[:60],
+                }
         if methodology is None and src in _METHODLOGY_MAP:
             node_id, fallback = _METHODLOGY_MAP[src]
             if node_id and belief_node and src.startswith("ToM"):
-                methodology = {"name": belief_node.name, "source": belief_node.source,
-                               "description": (belief_node.description or "")[:60]}
+                methodology = {
+                    "name": belief_node.name,
+                    "source": belief_node.source,
+                    "description": (belief_node.description or "")[:60],
+                }
             elif fallback:
                 methodology = {"name": fallback, "source": src, "description": ""}
         if methodology:
@@ -523,13 +580,14 @@ EXPORT_DIR = os.path.join(os.path.dirname(__file__), "..", "output", "exports")
 
 
 @app.get("/project/{project_id}/export/md")
-async def export_markdown(project_id: str,
-                          orch: Orchestrator = Depends(get_orchestrator)):
+async def export_markdown(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     os.makedirs(EXPORT_DIR, exist_ok=True)
-    safe_title = "".join(c for c in (project.title or "project") if c.isalnum() or c in " _-").strip()
+    safe_title = "".join(
+        c for c in (project.title or "project") if c.isalnum() or c in " _-"
+    ).strip()
     filename = f"{safe_title or project_id}.md"
     output_path = os.path.join(EXPORT_DIR, filename)
     export_project_markdown(project, output_path)
@@ -537,20 +595,21 @@ async def export_markdown(project_id: str,
 
 
 @app.get("/project/{project_id}/export/epub")
-async def export_epub(project_id: str,
-                      orch: Orchestrator = Depends(get_orchestrator)):
+async def export_epub(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     try:
-        import ebooklib  # noqa: F401
-    except ImportError:
+        import ebooklib  # noqa: F401  # import 探活
+    except ImportError as err:
         raise HTTPException(
             status_code=400,
             detail="ebooklib 未安装，请运行 pip install ebooklib 以启用 EPUB 导出",
-        )
+        ) from err
     os.makedirs(EXPORT_DIR, exist_ok=True)
-    safe_title = "".join(c for c in (project.title or "project") if c.isalnum() or c in " _-").strip()
+    safe_title = "".join(
+        c for c in (project.title or "project") if c.isalnum() or c in " _-"
+    ).strip()
     filename = f"{safe_title or project_id}.epub"
     output_path = os.path.join(EXPORT_DIR, filename)
     export_project_epub(project, output_path)
@@ -558,8 +617,9 @@ async def export_epub(project_id: str,
 
 
 @app.get("/project/{project_id}/chapter/{chapter_number}/export/md")
-async def export_chapter(project_id: str, chapter_number: int,
-                         orch: Orchestrator = Depends(get_orchestrator)):
+async def export_chapter(
+    project_id: str, chapter_number: int, orch: Orchestrator = Depends(get_orchestrator)
+):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -570,7 +630,9 @@ async def export_chapter(project_id: str, chapter_number: int,
     if not chapter:
         raise HTTPException(status_code=404, detail=f"章节 {chapter_number} 不存在")
     os.makedirs(EXPORT_DIR, exist_ok=True)
-    safe_title = "".join(c for c in (chapter.title or f"chapter_{chapter_number}") if c.isalnum() or c in " _-").strip()
+    safe_title = "".join(
+        c for c in (chapter.title or f"chapter_{chapter_number}") if c.isalnum() or c in " _-"
+    ).strip()
     filename = f"ch{chapter_number:03d}_{safe_title}.md"
     output_path = os.path.join(EXPORT_DIR, filename)
     export_chapter_markdown(chapter, output_path)
@@ -579,14 +641,14 @@ async def export_chapter(project_id: str, chapter_number: int,
 
 # ─── Project Management (新增) ───
 
+
 @app.get("/projects")
 async def list_projects(orch: Orchestrator = Depends(get_orchestrator)):
     return orch.list_projects()
 
 
 @app.delete("/project/{project_id}")
-async def delete_project(project_id: str,
-                         orch: Orchestrator = Depends(get_orchestrator)):
+async def delete_project(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     result = orch.delete_project(project_id)
     if not result:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -594,8 +656,7 @@ async def delete_project(project_id: str,
 
 
 @app.get("/project/{project_id}/characters")
-async def get_characters(project_id: str,
-                         orch: Orchestrator = Depends(get_orchestrator)):
+async def get_characters(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -603,8 +664,7 @@ async def get_characters(project_id: str,
 
 
 @app.get("/project/{project_id}/foreshadowings")
-async def get_foreshadowings(project_id: str,
-                             orch: Orchestrator = Depends(get_orchestrator)):
+async def get_foreshadowings(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -613,9 +673,9 @@ async def get_foreshadowings(project_id: str,
 
 # ─── 风格指纹报告（#11） ───
 
+
 @app.get("/project/{project_id}/style-report")
-async def style_report(project_id: str,
-                       orch: Orchestrator = Depends(get_orchestrator)):
+async def style_report(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     """风格指纹：雷达图 + 感官分布 + 对话占比（基于已提交章节）"""
     project = orch.get_project(project_id)
     if not project:
@@ -655,19 +715,21 @@ async def style_report(project_id: str,
 
 # ─── LLM 章节生成（#04） ───
 
+
 class GenerateChapterRequest(BaseModel):
     prompt: str
     word_target: int = 300
 
 
 @app.post("/project/{project_id}/generate-chapter")
-async def generate_chapter(project_id: str, req: GenerateChapterRequest,
-                           orch: Orchestrator = Depends(get_orchestrator)):
+async def generate_chapter(
+    project_id: str, req: GenerateChapterRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     """从一句话灵感生成章节草稿（LLM）"""
     try:
         result = orch.generate_chapter(project_id, req.prompt, req.word_target)
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
     if not result["llm_used"]:
         raise HTTPException(
             status_code=503,
@@ -678,14 +740,17 @@ async def generate_chapter(project_id: str, req: GenerateChapterRequest,
 
 # ─── 蓝图 W1/W2：上下文工程 + 生成质量 + 大纲规划 ───
 
+
 @app.get("/api/context")
-async def api_context(project_id: str, query: str = "",
-                      orch: Orchestrator = Depends(get_orchestrator)):
+async def api_context(
+    project_id: str, query: str = "", orch: Orchestrator = Depends(get_orchestrator)
+):
     """W1: 分层上下文视察器（NovelAI 分层 + Morpheus 三层记忆）"""
     if not orch.get_project(project_id):
         raise HTTPException(status_code=404, detail="项目不存在")
     from core.context.assembler import ContextAssembler
     from core.context.engine import ContextConfig
+
     cfg = ContextConfig()
     ac = ContextAssembler(orch.store, cfg).assemble(project_id, query)
     return ac.to_dict()
@@ -698,14 +763,18 @@ class GenerateQualityRequest(BaseModel):
 
 
 @app.post("/api/generate-with-quality")
-async def api_generate_with_quality(req: GenerateQualityRequest,
-                                    orch: Orchestrator = Depends(get_orchestrator)):
+async def api_generate_with_quality(
+    req: GenerateQualityRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     """W1: 多变体生成 + 质量循环（Sudowrite 3 变体 × AnySpark 反馈轮）"""
     if not orch.get_project(req.project_id):
         raise HTTPException(status_code=404, detail="项目不存在")
     from core.generation.pipeline import GenerationPipeline
+
     result = GenerationPipeline(orch.store).generate_with_quality(
-        req.project_id, req.instruction, req.word_target,
+        req.project_id,
+        req.instruction,
+        req.word_target,
     )
     if not result.llm_used:
         raise HTTPException(status_code=503, detail="LLM 不可用或生成失败")
@@ -729,22 +798,30 @@ class OutlineRequest(BaseModel):
 async def api_generate_outline(req: OutlineRequest):
     """W2: 递归大纲生成（WriteHERE + GOAT/MICE/Dramatica 标注 + LIFO 验证）"""
     from core.planning.generator import OutlineGenerator
+
     ol = OutlineGenerator().generate(req.premise, req.template, req.target_chapters)
     return {
         "template": ol.template,
         "acts": [
             {
-                "id": a.id, "title": a.title, "description": a.description,
+                "id": a.id,
+                "title": a.title,
+                "description": a.description,
                 "chapters": [
                     {
-                        "id": c.id, "title": c.title, "description": c.description,
-                        "story_value": c.story_value, "story_charge": c.story_charge,
-                        "primary_pov": c.primary_pov, "mice_type": c.mice_type,
+                        "id": c.id,
+                        "title": c.title,
+                        "description": c.description,
+                        "story_value": c.story_value,
+                        "story_charge": c.story_charge,
+                        "primary_pov": c.primary_pov,
+                        "mice_type": c.mice_type,
                         "climax_position": c.climax_position,
                         "methodology_source": c.methodology_source,
                         "word_target": c.word_target,
                     }
-                    for c in a.children if c.level == "chapter"
+                    for c in a.children
+                    if c.level == "chapter"
                 ],
             }
             for a in ol.root.children
@@ -755,12 +832,12 @@ async def api_generate_outline(req: OutlineRequest):
 
 
 @app.get("/api/voice-profile/{project_id}")
-async def api_voice_profile(project_id: str,
-                            orch: Orchestrator = Depends(get_orchestrator)):
+async def api_voice_profile(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     """W1: 从项目已写文本推导 VoiceProfile"""
     if not orch.get_project(project_id):
         raise HTTPException(status_code=404, detail="项目不存在")
     from core.style.voice_profile import VoiceProfileInterview
+
     text = "\n\n".join(ch.text for ch in orch.store.get_chapters(project_id))
     vp = VoiceProfileInterview().extract_from_text(text)
     return {"profile": vp.__dict__, "prompt": vp.to_prompt()}
@@ -768,10 +845,12 @@ async def api_voice_profile(project_id: str,
 
 # ─── 产品化计划 W2: 质量检测 / AI续写 ───
 
+
 @app.post("/api/quality")
 async def api_quality(req: TextSubmitRequest):
     """W2: 五大质量检测聚合（InkOS/Barthes/Storr/Maass/ShowDon'tTell）"""
     from core.quality import get_quality_inspector
+
     issues = get_quality_inspector().run_all(req.text)
     return {
         "total": len(issues),
@@ -787,12 +866,14 @@ class AIContinueRequest(BaseModel):
 
 
 @app.post("/project/{project_id}/ai-continue")
-async def api_ai_continue(project_id: str, req: AIContinueRequest,
-                          orch: Orchestrator = Depends(get_orchestrator)):
+async def api_ai_continue(
+    project_id: str, req: AIContinueRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     """W1: AI 续写——基于当前文本尾部 + 项目上下文，生成下一段"""
     if not orch.get_project(project_id):
         raise HTTPException(status_code=404, detail="项目不存在")
     from core.generation.pipeline import GenerationPipeline
+
     text = req.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail="text 不能为空")
@@ -801,7 +882,9 @@ async def api_ai_continue(project_id: str, req: AIContinueRequest,
     tail = text[-400:]
     instruction = f"紧接着以下内容继续写（保持语气与视角连续）：\n{tail}"
     result = GenerationPipeline(orch.store).generate_with_quality(
-        project_id, instruction, req.word_target,
+        project_id,
+        instruction,
+        req.word_target,
     )
     if not result.llm_used:
         raise HTTPException(status_code=503, detail="LLM 不可用或生成失败")
@@ -815,6 +898,7 @@ async def api_ai_continue(project_id: str, req: AIContinueRequest,
 
 # ─── 碎片发散（#16） ───
 
+
 class DivergeRequest(BaseModel):
     fragments: list[str]
     count: int = 5
@@ -824,19 +908,19 @@ class DivergeRequest(BaseModel):
 async def diverge(req: DivergeRequest):
     """#16: 碎片画面 → 世界线预览（无需项目，灵感期可用）"""
     try:
-        return Orchestrator(store=get_store()).diverge_fragments(
-            req.fragments, req.count
-        )
+        return Orchestrator(store=get_store()).diverge_fragments(req.fragments, req.count)
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise HTTPException(status_code=400, detail=str(e)) from e
 
 
 # ─── 插件系统（#23） ───
+
 
 @app.get("/plugins")
 async def plugins_list():
     """#23: 已加载插件列表 + 加载错误"""
     from core.plugins import list_plugins, load_errors, load_plugins
+
     load_plugins()  # 热重载（幂等重扫）
     return {"plugins": list_plugins(), "errors": load_errors()}
 
@@ -844,13 +928,15 @@ async def plugins_list():
 @app.post("/plugins/test-gate")
 async def plugins_test_gate(req: TextSubmitRequest):
     """#23: 用给定文本试运行所有 gate 插件"""
-    from core.plugins import run_gate_plugins, load_plugins
+    from core.plugins import load_plugins, run_gate_plugins
+
     load_plugins()
     results = run_gate_plugins(req.text)
     return {"plugin_gate_results": results}
 
 
 # ─── 风格市场（#21） ───
+
 
 class PublishProfileRequest(BaseModel):
     project_id: str
@@ -860,14 +946,18 @@ class PublishProfileRequest(BaseModel):
 
 
 @app.get("/style-profiles")
-async def style_profiles_list(sort: str = "downloads",
-                              orch: Orchestrator = Depends(get_orchestrator)):
+async def style_profiles_list(
+    sort: str = "downloads", orch: Orchestrator = Depends(get_orchestrator)
+):
     """#21: 浏览风格市场"""
     profiles = orch.store.get_style_profiles(sort_by=sort)
     return [
         {
-            "id": p.id, "name": p.name, "description": p.description,
-            "genre_tags": p.genre_tags, "download_count": p.download_count,
+            "id": p.id,
+            "name": p.name,
+            "description": p.description,
+            "genre_tags": p.genre_tags,
+            "download_count": p.download_count,
             "rating": p.rating,
         }
         for p in profiles
@@ -875,8 +965,9 @@ async def style_profiles_list(sort: str = "downloads",
 
 
 @app.post("/style-profiles")
-async def publish_profile(req: PublishProfileRequest,
-                          orch: Orchestrator = Depends(get_orchestrator)):
+async def publish_profile(
+    req: PublishProfileRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     """#21: 发布当前项目风格指纹为共享档案"""
     project = orch.get_project(req.project_id)
     if not project:
@@ -885,11 +976,14 @@ async def publish_profile(req: PublishProfileRequest,
     if not fingerprint:
         raise HTTPException(status_code=400, detail="项目尚无风格指纹——先提交章节并生成风格报告")
     import json as _json
+
     fp_data = {
         "tone_vector": _json.loads(fingerprint.tone_vector_json or "{}"),
         "pace_vector": _json.loads(fingerprint.pace_vector_json or "{}"),
         "dialogue_ratio": fingerprint.dialogue_ratio,
-        "sensory_channel_bias": _json.loads(getattr(fingerprint, "sensory_channel_bias_json", "{}") or "{}"),
+        "sensory_channel_bias": _json.loads(
+            getattr(fingerprint, "sensory_channel_bias_json", "{}") or "{}"
+        ),
         "pov_preference": getattr(fingerprint, "pov_preference", ""),
     }
     profile = orch.store.create_style_profile(
@@ -903,8 +997,9 @@ async def publish_profile(req: PublishProfileRequest,
 
 
 @app.post("/project/{project_id}/apply-style/{profile_id}")
-async def apply_style_profile(project_id: str, profile_id: int,
-                             orch: Orchestrator = Depends(get_orchestrator)):
+async def apply_style_profile(
+    project_id: str, profile_id: int, orch: Orchestrator = Depends(get_orchestrator)
+):
     """#21: 应用市场风格到项目（30% 向目标档案混合）"""
     project = orch.get_project(project_id)
     if not project:
@@ -925,7 +1020,12 @@ async def apply_style_profile(project_id: str, profile_id: int,
             if isinstance(c, (int, float)) and isinstance(t, (int, float)):
                 out[k] = round(c * (1 - weight) + t * weight, 4)
             elif isinstance(c, dict) and isinstance(t, dict):
-                out[k] = {ik: blend({"v": c[ik]}, {"v": t[ik]}, weight)["v"] if isinstance(c.get(ik), (int, float)) and isinstance(t.get(ik), (int, float)) else (t.get(ik) if ik in t else c.get(ik)) for ik in set(c) | set(t)}
+                out[k] = {
+                    ik: blend({"v": c[ik]}, {"v": t[ik]}, weight)["v"]
+                    if isinstance(c.get(ik), (int, float)) and isinstance(t.get(ik), (int, float))
+                    else (t.get(ik) if ik in t else c.get(ik))
+                    for ik in set(c) | set(t)
+                }
             else:
                 out[k] = t if t is not None else c
         return out
@@ -955,28 +1055,38 @@ async def apply_style_profile(project_id: str, profile_id: int,
 
 # ─── 审计报告（产品化 W1: /audit） ───
 
+
 @app.post("/project/{project_id}/audit")
-async def api_audit(project_id: str, req: TextSubmitRequest,
-                    orch: Orchestrator = Depends(get_orchestrator)):
+async def api_audit(
+    project_id: str, req: TextSubmitRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     """W1: 章节审计——166门禁 + 跨章 + 五大质量检测"""
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
     context = EntityExtractor.to_gate_context(req.text)
-    gate_results = project.gates.pre_generation_check(req.text, context={
-        "facts": context["facts"], "char_actions": context["char_actions"],
-        "identity_changes": context["identity_changes"],
-        "events": context["events"], "movements": context["movements"],
-    })
+    gate_results = project.gates.pre_generation_check(
+        req.text,
+        context={
+            "facts": context["facts"],
+            "char_actions": context["char_actions"],
+            "identity_changes": context["identity_changes"],
+            "events": context["events"],
+            "movements": context["movements"],
+        },
+    )
     has_block = any(r.level == GateLevel.BLOCK for r in gate_results)
     report = orch.submit_chapter(project_id, req.text) if not has_block else None
 
     from core.quality import get_quality_inspector
+
     quality = get_quality_inspector().run_all(req.text)
 
     return {
-        "overall_score": report.overall_score if report else max(0, 100 - sum(20 if r.level == GateLevel.BLOCK else 10 for r in gate_results)),
+        "overall_score": report.overall_score
+        if report
+        else max(0, 100 - sum(20 if r.level == GateLevel.BLOCK else 10 for r in gate_results)),
         "gate_results": [r.to_dict() for r in gate_results],
         "audit_results": [r.to_dict() for r in (report.results if report else [])],
         "quality": quality,
@@ -986,6 +1096,7 @@ async def api_audit(project_id: str, req: TextSubmitRequest,
 
 # ─── 世界构建 Wiki（#18） ───
 
+
 class WorldElementRequest(BaseModel):
     name: str
     element_type: str  # character / location / item / event
@@ -994,8 +1105,7 @@ class WorldElementRequest(BaseModel):
 
 
 @app.get("/project/{project_id}/wiki")
-async def wiki_list(project_id: str,
-                    orch: Orchestrator = Depends(get_orchestrator)):
+async def wiki_list(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     """#18: 世界元素总览（按类型分组）"""
     project = orch.get_project(project_id)
     if not project:
@@ -1004,13 +1114,14 @@ async def wiki_list(project_id: str,
     groups: dict[str, list] = {"location": [], "item": [], "event": [], "other": []}
     for e in elements:
         import json as _json
+
         props = {}
-        try:
+        with contextlib.suppress(Exception):
             props = _json.loads(e.properties_json or "{}")
-        except Exception:
-            pass
         entry = {
-            "id": e.id, "name": e.name, "type": e.type,
+            "id": e.id,
+            "name": e.name,
+            "type": e.type,
             "description": e.description,
             **({"mentions": props["mentions"]} if props.get("mentions") else {}),
         }
@@ -1023,8 +1134,9 @@ async def wiki_list(project_id: str,
 
 
 @app.post("/project/{project_id}/wiki")
-async def wiki_add(project_id: str, req: WorldElementRequest,
-                   orch: Orchestrator = Depends(get_orchestrator)):
+async def wiki_add(
+    project_id: str, req: WorldElementRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     """#18: 手动添加世界元素"""
     project = orch.get_project(project_id)
     if not project:
@@ -1043,14 +1155,17 @@ async def wiki_add(project_id: str, req: WorldElementRequest,
 
 
 @app.delete("/project/{project_id}/wiki/{element_id}")
-async def wiki_delete(project_id: str, element_id: str,
-                     orch: Orchestrator = Depends(get_orchestrator)):
+async def wiki_delete(
+    project_id: str, element_id: str, orch: Orchestrator = Depends(get_orchestrator)
+):
     """#18: 删除世界元素"""
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
-    from sqlmodel import Session, select
+    from sqlmodel import Session
+
     from core.persistence.models import WorldElement
+
     with Session(orch.store.engine) as session:
         el = session.get(WorldElement, element_id)
         if not el or el.project_id != project_id:
@@ -1062,13 +1177,13 @@ async def wiki_delete(project_id: str, element_id: str,
 
 
 @app.post("/project/{project_id}/wiki/harvest")
-async def wiki_harvest(project_id: str,
-                       orch: Orchestrator = Depends(get_orchestrator)):
+async def wiki_harvest(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     """#18: 从已提交章节自动收获世界元素（实体提取→Wiki 建议）"""
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     from core.entity_extractor import EntityExtractor
+
     chapters = orch.store.get_chapters(project_id)
     if not chapters:
         raise HTTPException(status_code=400, detail="尚无已提交章节")
@@ -1081,7 +1196,9 @@ async def wiki_harvest(project_id: str,
             if loc not in existing and len(loc) >= 2:
                 existing.add(loc)
                 el = orch.store.add_world_element(
-                    project_id, loc, "location",
+                    project_id,
+                    loc,
+                    "location",
                     description=f"第{ch.number}章出现",
                     properties={"mentions": 1, "first_chapter": ch.number},
                 )
@@ -1090,7 +1207,9 @@ async def wiki_harvest(project_id: str,
             if item_name not in existing and len(item_name) >= 2:
                 existing.add(item_name)
                 el = orch.store.add_world_element(
-                    project_id, item_name, "item",
+                    project_id,
+                    item_name,
+                    "item",
                     description=f"第{ch.number}章出现",
                     properties={"mentions": 1, "first_chapter": ch.number},
                 )
@@ -1101,6 +1220,7 @@ async def wiki_harvest(project_id: str,
 
 # ─── 假设推演（#15） ───
 
+
 class SimulateRequest(BaseModel):
     hypothesis: str
     belief_changes: list = []  # [{character, proposition, value}]
@@ -1108,23 +1228,25 @@ class SimulateRequest(BaseModel):
 
 
 @app.post("/project/{project_id}/simulate")
-async def simulate(project_id: str, req: SimulateRequest,
-                  orch: Orchestrator = Depends(get_orchestrator)):
+async def simulate(
+    project_id: str, req: SimulateRequest, orch: Orchestrator = Depends(get_orchestrator)
+):
     """#15: "如果…会怎样"——克隆状态推演，不落盘"""
     try:
         result = orch.simulate_hypothesis(
             project_id, req.hypothesis, req.belief_changes, req.branch_count
         )
-        return result
     except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=404, detail=str(e)) from e
+    else:
+        return result
 
 
 # ─── 章节管理 CRUD（#08） ───
 
+
 @app.get("/project/{project_id}/chapters")
-async def list_chapters(project_id: str,
-                        orch: Orchestrator = Depends(get_orchestrator)):
+async def list_chapters(project_id: str, orch: Orchestrator = Depends(get_orchestrator)):
     """章节列表：章次 | 标题 | 字数 | 评分"""
     project = orch.get_project(project_id)
     if not project:
@@ -1135,23 +1257,27 @@ async def list_chapters(project_id: str,
         score = 100.0
         try:
             import json as _json
+
             report = _json.loads(ch.audit_report_json or "{}")
             score = report.get("overall_score", 100.0)
         except Exception:
             pass
-        out.append({
-            "number": ch.number,
-            "title": ch.title,
-            "word_count": ch.word_count,
-            "score": score,
-            "created_at": ch.created_at.isoformat() if ch.created_at else None,
-        })
+        out.append(
+            {
+                "number": ch.number,
+                "title": ch.title,
+                "word_count": ch.word_count,
+                "score": score,
+                "created_at": ch.created_at.isoformat() if ch.created_at else None,
+            }
+        )
     return out
 
 
 @app.get("/project/{project_id}/chapters/{number}")
-async def get_chapter_text(project_id: str, number: int,
-                           orch: Orchestrator = Depends(get_orchestrator)):
+async def get_chapter_text(
+    project_id: str, number: int, orch: Orchestrator = Depends(get_orchestrator)
+):
     """单章正文 + 审计报告"""
     project = orch.get_project(project_id)
     if not project:
@@ -1161,6 +1287,7 @@ async def get_chapter_text(project_id: str, number: int,
     if not ch:
         raise HTTPException(status_code=404, detail=f"章节 {number} 不存在")
     import json as _json
+
     try:
         report = _json.loads(ch.audit_report_json or "{}")
     except Exception:
@@ -1175,8 +1302,9 @@ async def get_chapter_text(project_id: str, number: int,
 
 
 @app.delete("/project/{project_id}/chapters/{number}")
-async def delete_chapter(project_id: str, number: int,
-                         orch: Orchestrator = Depends(get_orchestrator)):
+async def delete_chapter(
+    project_id: str, number: int, orch: Orchestrator = Depends(get_orchestrator)
+):
     """删除章节（物理删除，后续章次保持不变）"""
     project = orch.get_project(project_id)
     if not project:
@@ -1185,7 +1313,7 @@ async def delete_chapter(project_id: str, number: int,
     ch = next((c for c in chapters if c.number == number), None)
     if not ch:
         raise HTTPException(status_code=404, detail=f"章节 {number} 不存在")
-    with_chapter_removed = orch.store.delete_chapter(ch.id)
+    orch.store.delete_chapter(ch.id)
     orch._invalidate_cache(project_id)
     return {"deleted": True, "number": number}
 

@@ -3,16 +3,17 @@
 
 将项目状态序列化为可读文件。EPUB 依赖 ebooklib，缺失时自动降级为 Markdown。
 """
+
 from __future__ import annotations
 
 import os
 
-from core.orchestrator import ProjectState, ChapterInfo
-
+from core.orchestrator import ChapterInfo, ProjectState
 
 # ═══════════════════════════════════════════
 # 内部工具
 # ═══════════════════════════════════════════
+
 
 def _ensure_dir(path: str) -> str:
     directory = os.path.dirname(path)
@@ -33,8 +34,7 @@ def _character_rows(project: ProjectState) -> list[tuple[str, str, str]]:
         if kg_node:
             role = kg_node.properties.get("role", "")
         description = ", ".join(
-            f"{g.description}(优先级{g.priority})"
-            for g in char.active_goals[:2]
+            f"{g.description}(优先级{g.priority})" for g in char.active_goals[:2]
         )
         rows.append((char.name, role, description))
     return rows
@@ -43,6 +43,7 @@ def _character_rows(project: ProjectState) -> list[tuple[str, str, str]]:
 # ═══════════════════════════════════════════
 # Markdown 导出
 # ═══════════════════════════════════════════
+
 
 def export_project_markdown(project: ProjectState, output_path: str) -> str:
     """导出完整项目为单个 Markdown 文件，返回写入路径。"""
@@ -105,10 +106,10 @@ def export_chapter_markdown(chapter: ChapterInfo, output_path: str) -> str:
 # EPUB 导出
 # ═══════════════════════════════════════════
 
+
 def export_project_epub(project: ProjectState, output_path: str) -> str:
     """导出为 EPUB。ebooklib 未安装时降级为 Markdown 并返回其路径。"""
     try:
-        import ebooklib
         from ebooklib import epub
     except ImportError:
         md_path = output_path.rsplit(".", 1)[0] + ".md"

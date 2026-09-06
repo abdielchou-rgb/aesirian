@@ -11,56 +11,59 @@
 """
 
 from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional, Callable
-from datetime import datetime
 
 
 class MethodologyFamily(Enum):
     NARRATIVE_STRUCTURE = "narrative_structure"  # 叙事结构族
-    NARRATIVE_ATOM = "narrative_atom"            # 叙事原子族
-    CREATIVE_COGNITION = "creative_cognition"     # 创意认知族
-    GENRE_CONTRACT = "genre_contract"             # 类型契约族
-    CHARACTER_SYSTEM = "character_system"         # 角色系统族
-    COGNITIVE_SCIENCE = "cognitive_science"        # 认知科学族
-    QUALITY_GATE = "quality_gate"                  # 质量标准族
-    ENGINEERING = "engineering"                    # 工程实践族
+    NARRATIVE_ATOM = "narrative_atom"  # 叙事原子族
+    CREATIVE_COGNITION = "creative_cognition"  # 创意认知族
+    GENRE_CONTRACT = "genre_contract"  # 类型契约族
+    CHARACTER_SYSTEM = "character_system"  # 角色系统族
+    COGNITIVE_SCIENCE = "cognitive_science"  # 认知科学族
+    QUALITY_GATE = "quality_gate"  # 质量标准族
+    ENGINEERING = "engineering"  # 工程实践族
 
 
 class TriggerEvent(Enum):
-    FRAGMENT_INPUT = "fragment_input"              # 用户输入碎片
-    CHAPTER_SUBMIT = "chapter_submit"              # 章节提交时
-    ARC_PLANNING = "arc_planning"                  # 弧线规划
-    CHARACTER_CREATE = "character_create"          # 角色创建
-    DIVERGENCE = "divergence"                      # 发散
-    CONVERGENCE = "convergence"                    # 收敛
-    AUDIT = "audit"                                # 审计
-    POST_CHAPTER = "post_chapter"                  # 章后
-    STYLE_EXTRACT = "style_extract"                # 风格提取
+    FRAGMENT_INPUT = "fragment_input"  # 用户输入碎片
+    CHAPTER_SUBMIT = "chapter_submit"  # 章节提交时
+    ARC_PLANNING = "arc_planning"  # 弧线规划
+    CHARACTER_CREATE = "character_create"  # 角色创建
+    DIVERGENCE = "divergence"  # 发散
+    CONVERGENCE = "convergence"  # 收敛
+    AUDIT = "audit"  # 审计
+    POST_CHAPTER = "post_chapter"  # 章后
+    STYLE_EXTRACT = "style_extract"  # 风格提取
 
 
 class OutputType(Enum):
-    DIRECTION = "direction"          # 方向（用于发散）
-    CONSTRAINT = "constraint"        # 约束（用于生成）
-    ASSESSMENT = "assessment"        # 评估（用于审计）
-    INSIGHT = "insight"              # 洞察（用于建议）
-    TRANSFORMATION = "transformation" # 变换操作
+    DIRECTION = "direction"  # 方向（用于发散）
+    CONSTRAINT = "constraint"  # 约束（用于生成）
+    ASSESSMENT = "assessment"  # 评估（用于审计）
+    INSIGHT = "insight"  # 洞察（用于建议）
+    TRANSFORMATION = "transformation"  # 变换操作
 
 
 @dataclass
 class StrategyResult:
     """一个方法论策略的执行结果"""
-    source_method: str        # 方法论名称
-    source_family: str        # 族名称
+
+    source_method: str  # 方法论名称
+    source_family: str  # 族名称
     output_type: OutputType
     content: str
     confidence: float = 0.8
     applicable_to: list[str] = field(default_factory=list)  # 适用于
 
+
 @dataclass
 class MethodologyNode:
     """一个可执行的方法论策略节点"""
+
     id: str
     name: str
     family: MethodologyFamily
@@ -84,9 +87,9 @@ class MethodologyNode:
     incompatible_with: list[str] = field(default_factory=list)  # 不兼容
 
     # 执行钩子
-    execute_fn: Optional[Callable] = field(default=None, repr=False, compare=False)
+    execute_fn: Callable | None = field(default=None, repr=False, compare=False)
 
-    def execute(self, context: dict) -> Optional[StrategyResult]:
+    def execute(self, context: dict) -> StrategyResult | None:
         if not self.enabled or not self.execute_fn:
             return None
         return self.execute_fn(context, self)
@@ -107,16 +110,18 @@ class MethodologyRegistry:
         for event in node.trigger_events:
             self._trigger_index[event].append(node.id)
 
-    def get(self, method_id: str) -> Optional[MethodologyNode]:
+    def get(self, method_id: str) -> MethodologyNode | None:
         return self._nodes.get(method_id)
 
     def get_by_family(self, family: MethodologyFamily) -> list[MethodologyNode]:
         return [self._nodes[nid] for nid in self._families.get(family, []) if nid in self._nodes]
 
     def get_by_trigger(self, event: TriggerEvent) -> list[MethodologyNode]:
-        return [self._nodes[nid] for nid in self._trigger_index.get(event, []) if nid in self._nodes]
+        return [
+            self._nodes[nid] for nid in self._trigger_index.get(event, []) if nid in self._nodes
+        ]
 
-    def execute(self, method_id: str, context: dict) -> Optional[StrategyResult]:
+    def execute(self, method_id: str, context: dict) -> StrategyResult | None:
         node = self._nodes.get(method_id)
         if not node:
             return None
@@ -138,7 +143,7 @@ class MethodologyRegistry:
             result = self.execute(mid, chain_context)
             if result:
                 results.append(result)
-                chain_context['_last_result'] = result.content
+                chain_context["_last_result"] = result.content
         return results
 
     def all_nodes(self) -> list[MethodologyNode]:

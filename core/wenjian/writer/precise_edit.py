@@ -4,14 +4,17 @@
 """
 
 from __future__ import annotations
+
 import re
+
 from wenjian.models.base import registry as model_registry
 
 
 def _get_llm(api_key="", provider="anthropic", model=""):
-    from wenjian.config import ModelConfig
     if api_key:
-        model_name = model or {"anthropic": "claude-sonnet-4-20250514", "openai": "gpt-4o"}.get(provider, "claude-sonnet-4-20250514")
+        model_name = model or {"anthropic": "claude-sonnet-4-20250514", "openai": "gpt-4o"}.get(
+            provider, "claude-sonnet-4-20250514"
+        )
         return model_registry.create(provider, model_name, api_key)
     raise ValueError("需要 API Key")
 
@@ -24,13 +27,15 @@ class ChainEditor:
         paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
         nodes = []
         for i, para in enumerate(paragraphs):
-            nodes.append({
-                "id": f"n{i}",
-                "type": self._detect_node_type(para),
-                "text": para,
-                "char_count": len(para),
-                "characters": self._extract_characters(para),
-            })
+            nodes.append(
+                {
+                    "id": f"n{i}",
+                    "type": self._detect_node_type(para),
+                    "text": para,
+                    "char_count": len(para),
+                    "characters": self._extract_characters(para),
+                }
+            )
         return nodes
 
     def _detect_node_type(self, text: str) -> str:
@@ -45,12 +50,20 @@ class ChainEditor:
         return "description"
 
     def _extract_characters(self, text: str) -> list[str]:
-        names = re.findall(r'[「「『『](\w{2,4})[」」』』]', text)
-        names += re.findall(r'(\w{2,4})(?:说|道|问|答|喊|叫)', text)
+        names = re.findall(r"[「「『『](\w{2,4})[」」』』]", text)
+        names += re.findall(r"(\w{2,4})(?:说|道|问|答|喊|叫)", text)
         return list(set(names))
 
-    def edit_node(self, nodes: list[dict], target_id: str, edit_mode: str, instruction: str,
-                  api_key="", provider="anthropic", model="") -> list[dict]:
+    def edit_node(
+        self,
+        nodes: list[dict],
+        target_id: str,
+        edit_mode: str,
+        instruction: str,
+        api_key="",
+        provider="anthropic",
+        model="",
+    ) -> list[dict]:
         """编辑指定节点。"""
         mc = _get_llm(api_key, provider, model)
         client = mc  # Already a provider instance
@@ -64,8 +77,12 @@ class ChainEditor:
             return nodes
 
         # 只替换目标节点
-        prompt = f"""原文段落：\n{target['text']}\n\n修改要求（{edit_mode}）：{instruction}\n\n只输出修改后的段落，不要输出其他内容。"""
-        resp = client.chat(system="你是一个小说编辑。保持语气一致。", messages=[{"role": "user", "content": prompt}], temperature=0.4)
+        prompt = f"""原文段落：\n{target["text"]}\n\n修改要求（{edit_mode}）：{instruction}\n\n只输出修改后的段落，不要输出其他内容。"""
+        resp = client.chat(
+            system="你是一个小说编辑。保持语气一致。",
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.4,
+        )
         new_text = resp.content.strip()
 
         idx = None
@@ -74,7 +91,6 @@ class ChainEditor:
                 idx = i
                 break
         if idx is not None:
-            old_text = nodes[idx]["text"]
             nodes[idx]["text"] = new_text
             nodes[idx]["edited"] = True
             nodes[idx]["edit_type"] = edit_mode
@@ -86,8 +102,9 @@ class ChainEditor:
         """将节点重建为完整文本。"""
         return "\n\n".join(n["text"] for n in nodes)
 
-    def precise_edit(self, text: str, edit_descriptions: list[dict],
-                     api_key="", provider="anthropic", model="") -> dict:
+    def precise_edit(
+        self, text: str, edit_descriptions: list[dict], api_key="", provider="anthropic", model=""
+    ) -> dict:
         """批量精确编辑：[(paragraph_index_or_keyword, mode, instruction), ...]"""
         nodes = self.split_into_nodes(text)
         changes = []
@@ -113,7 +130,9 @@ class ChainEditor:
             nodes = self.edit_node(nodes, target_id, mode, instruction, api_key, provider, model)
             after = [n["text"] for n in nodes if n["id"] == target_id][0]
             if before != after:
-                changes.append({"node": target_id, "mode": mode, "before": before[:100], "after": after[:100]})
+                changes.append(
+                    {"node": target_id, "mode": mode, "before": before[:100], "after": after[:100]}
+                )
 
         return {"text": self.rebuild(nodes), "changes": changes, "nodes_edited": len(changes)}
 

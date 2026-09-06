@@ -2,6 +2,7 @@
 叙事提示模板 — Æsirian 策略模块入口
 
 """
+
 from core.strategies.narrative_prompt import (
     SYSTEM_PROMPT,
     build_user_prompt,

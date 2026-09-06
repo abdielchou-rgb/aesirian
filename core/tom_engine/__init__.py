@@ -15,44 +15,48 @@
 """
 
 from __future__ import annotations
+
+import json
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
-import json
-import uuid
-
 
 # ═══════════════════════════════════════════
 # 核心数据类型
 # ═══════════════════════════════════════════
 
+
 class BeliefSource(Enum):
     """信念信息来源"""
-    DIRECT_WITNESS = "目击"       # 角色亲眼看到 → 高可信度
-    SECOND_HAND = "二手信息"      # 听说的 → 中等可信度，可被推翻
-    INFERENCE = "推理"            # 逻辑推演 → 中等可信度
-    DECEPTION = "欺骗"            # 被故意误导 → 错误信念
-    MISUNDERSTANDING = "误解"     # 误解信息 → 错误信念
+
+    DIRECT_WITNESS = "目击"  # 角色亲眼看到 → 高可信度
+    SECOND_HAND = "二手信息"  # 听说的 → 中等可信度，可被推翻
+    INFERENCE = "推理"  # 逻辑推演 → 中等可信度
+    DECEPTION = "欺骗"  # 被故意误导 → 错误信念
+    MISUNDERSTANDING = "误解"  # 误解信息 → 错误信念
 
 
 class TensionType(Enum):
     """戏剧张力类型"""
-    BELIEF_CONFLICT = "信念冲突"          # 角色A的信念 ≠ 角色B的信念
-    DRAMATIC_IRONY = "戏剧反讽"           # 读者知道 > 角色知道
-    RECURSIVE_MISMATCH = "递归错位"        # A以为B知道 ≠ B实际知道
-    SECRET_AT_RISK = "秘密暴露风险"        # 秘密即将被揭穿
-    GOAL_CONFLICT = "目标冲突"             # 两个角色的目标不可调和
+
+    BELIEF_CONFLICT = "信念冲突"  # 角色A的信念 ≠ 角色B的信念
+    DRAMATIC_IRONY = "戏剧反讽"  # 读者知道 > 角色知道
+    RECURSIVE_MISMATCH = "递归错位"  # A以为B知道 ≠ B实际知道
+    SECRET_AT_RISK = "秘密暴露风险"  # 秘密即将被揭穿
+    GOAL_CONFLICT = "目标冲突"  # 两个角色的目标不可调和
 
 
 @dataclass
 class Belief:
     """角色的单一信念——ToM引擎的基本单元"""
-    proposition: str                    # 命题描述，如 "张三就是凶手"
-    value: bool | str | None            # 信念内容
-    confidence: float                   # 可信度 0.0-1.0
+
+    proposition: str  # 命题描述，如 "张三就是凶手"
+    value: bool | str | None  # 信念内容
+    confidence: float  # 可信度 0.0-1.0
     source: BeliefSource = BeliefSource.DIRECT_WITNESS
-    updated_at: int = 0                 # 更新的章节编号
-    is_erroneous: bool = False          # 是否为错误信念
+    updated_at: int = 0  # 更新的章节编号
+    is_erroneous: bool = False  # 是否为错误信念
 
     def __repr__(self):
         status = "❌" if self.is_erroneous else "✓"
@@ -62,6 +66,7 @@ class Belief:
 @dataclass
 class CharacterBeliefState:
     """一个角色的完整信念状态"""
+
     character_id: str
     name: str
 
@@ -88,23 +93,27 @@ class CharacterBeliefState:
         ironies = []
         for prop, truth in reader_knowledge.items():
             if prop in self.world_beliefs and self.world_beliefs[prop].value != truth:
-                ironies.append(f"读者知道「{prop}={truth}」，但{self.name}以为{self.world_beliefs[prop].value}")
+                ironies.append(
+                    f"读者知道「{prop}={truth}」，但{self.name}以为{self.world_beliefs[prop].value}"
+                )
         return ironies
 
 
 @dataclass
 class Secret:
     """秘密——核心叙事张力的来源"""
+
     description: str
     known_to: list[str] = field(default_factory=list)  # 知道秘密的角色ID列表
     hidden_from: list[str] = field(default_factory=list)  # 不知道的角色ID列表
     is_revealed: bool = False
-    reveal_chapter: Optional[int] = None
+    reveal_chapter: int | None = None
 
 
 @dataclass
 class Goal:
     """角色目标"""
+
     description: str
     priority: int = 1
     active: bool = True
@@ -114,6 +123,7 @@ class Goal:
 @dataclass
 class TensionPoint:
     """戏剧张力点——ToM引擎检测到的可叙事冲突"""
+
     type: TensionType
     description: str
     intensity: float  # 0.0-1.0
@@ -124,6 +134,7 @@ class TensionPoint:
 @dataclass
 class ActionTendency:
     """角色行动倾向——ToM 推理的输出"""
+
     character_id: str
     action: str
     rationale: str  # 推理依据
@@ -134,6 +145,7 @@ class ActionTendency:
 # ═══════════════════════════════════════════
 # ToM 引擎主类
 # ═══════════════════════════════════════════
+
 
 class TheoryOfMindEngine:
     """
@@ -192,7 +204,7 @@ class TheoryOfMindEngine:
         self.characters[char_id] = state
         return state
 
-    def get_character(self, char_id: str) -> Optional[CharacterBeliefState]:
+    def get_character(self, char_id: str) -> CharacterBeliefState | None:
         return self.characters.get(char_id)
 
     def get_all_characters(self) -> list[CharacterBeliefState]:
@@ -208,7 +220,7 @@ class TheoryOfMindEngine:
         proposition: str,
         value: bool | str,
         confidence: float,
-        source: BeliefSource = BeliefSource.DIRECT_WITNESS
+        source: BeliefSource = BeliefSource.DIRECT_WITNESS,
     ):
         """更新角色对世界的信念"""
         char = self.characters.get(char_id)
@@ -222,7 +234,7 @@ class TheoryOfMindEngine:
             confidence=confidence,
             source=source,
             updated_at=self.current_chapter,
-            is_erroneous=is_erroneous
+            is_erroneous=is_erroneous,
         )
         self._invalidate_index()
 
@@ -233,7 +245,7 @@ class TheoryOfMindEngine:
         proposition: str,
         value: bool | str,
         confidence: float,
-        source: BeliefSource = BeliefSource.DIRECT_WITNESS
+        source: BeliefSource = BeliefSource.DIRECT_WITNESS,
     ):
         """更新角色A对角色B的信念（ToM第一层）"""
         char = self.characters.get(char_id)
@@ -250,7 +262,7 @@ class TheoryOfMindEngine:
             confidence=confidence,
             source=source,
             updated_at=self.current_chapter,
-            is_erroneous=is_erroneous
+            is_erroneous=is_erroneous,
         )
 
     def update_recursive_belief(
@@ -261,7 +273,7 @@ class TheoryOfMindEngine:
         value: bool | str,
         confidence: float,
         depth: int = 2,
-        source: BeliefSource = BeliefSource.INFERENCE
+        source: BeliefSource = BeliefSource.INFERENCE,
     ):
         """更新角色的递归信念
 
@@ -286,25 +298,16 @@ class TheoryOfMindEngine:
             value=value,
             confidence=confidence,
             source=source,
-            updated_at=self.current_chapter
+            updated_at=self.current_chapter,
         )
 
     # ═══════════════════════════════════════
     # 秘密管理
     # ═══════════════════════════════════════
 
-    def register_secret(
-        self,
-        description: str,
-        known_to: list[str],
-        hidden_from: list[str]
-    ):
+    def register_secret(self, description: str, known_to: list[str], hidden_from: list[str]):
         """注册一个秘密——自动更新相关角色的known_secrets"""
-        secret = Secret(
-            description=description,
-            known_to=known_to,
-            hidden_from=hidden_from
-        )
+        secret = Secret(description=description, known_to=known_to, hidden_from=hidden_from)
         for cid in known_to:
             if cid in self.characters:
                 self.characters[cid].known_secrets.append(secret)
@@ -351,31 +354,35 @@ class TheoryOfMindEngine:
             if len(value_groups) > 1:
                 # 生成所有跨值组的角色对
                 items = list(value_groups.items())
-                for i, (val1, group1) in enumerate(items):
-                    for val2, group2 in items[i + 1:]:
+                for i, (_val1, group1) in enumerate(items):
+                    for _val2, group2 in items[i + 1 :]:
                         for cid1, b1 in group1:
                             for cid2, b2 in group2:
                                 c1 = self.characters[cid1]
                                 c2 = self.characters[cid2]
-                                self.tension_points.append(TensionPoint(
-                                    type=TensionType.BELIEF_CONFLICT,
-                                    description=f"{c1.name}相信「{prop}={b1.value}」，但{c2.name}相信「{prop}={b2.value}」",
-                                    intensity=min(1.0, (b1.confidence + b2.confidence) / 2),
-                                    involved_characters=[cid1, cid2],
-                                    suggestion=f"制造一场{c1.name}和{c2.name}争论{prop}的场景"
-                                ))
+                                self.tension_points.append(
+                                    TensionPoint(
+                                        type=TensionType.BELIEF_CONFLICT,
+                                        description=f"{c1.name}相信「{prop}={b1.value}」，但{c2.name}相信「{prop}={b2.value}」",
+                                        intensity=min(1.0, (b1.confidence + b2.confidence) / 2),
+                                        involved_characters=[cid1, cid2],
+                                        suggestion=f"制造一场{c1.name}和{c2.name}争论{prop}的场景",
+                                    )
+                                )
 
         # 检测戏剧反讽
         for cid, char in self.characters.items():
             ironies = char.get_dramatic_irony(self.reader_knowledge)
             for irony in ironies:
-                self.tension_points.append(TensionPoint(
-                    type=TensionType.DRAMATIC_IRONY,
-                    description=irony,
-                    intensity=0.8,
-                    involved_characters=[cid],
-                    suggestion=f"利用读者知道但{char.name}不知道的信息差制造紧张感"
-                ))
+                self.tension_points.append(
+                    TensionPoint(
+                        type=TensionType.DRAMATIC_IRONY,
+                        description=irony,
+                        intensity=0.8,
+                        involved_characters=[cid],
+                        suggestion=f"利用读者知道但{char.name}不知道的信息差制造紧张感",
+                    )
+                )
 
         # 检测递归错位
         char_ids = list(self.characters.keys())
@@ -392,13 +399,15 @@ class TheoryOfMindEngine:
                         if prop in other.world_beliefs:
                             actual = other.world_beliefs[prop]
                             if belief.value != actual.value:
-                                self.tension_points.append(TensionPoint(
-                                    type=TensionType.RECURSIVE_MISMATCH,
-                                    description=f"{char.name}以为{other.name}知道「{prop}={belief.value}」，但实际{other.name}知道的是「{prop}={actual.value}」",
-                                    intensity=0.9,  # 递归错位的张力最高
-                                    involved_characters=[cid, tid],
-                                    suggestion=f"让{char.name}基于错误的认知做出行动——读者会替ta着急"
-                                ))
+                                self.tension_points.append(
+                                    TensionPoint(
+                                        type=TensionType.RECURSIVE_MISMATCH,
+                                        description=f"{char.name}以为{other.name}知道「{prop}={belief.value}」，但实际{other.name}知道的是「{prop}={actual.value}」",
+                                        intensity=0.9,  # 递归错位的张力最高
+                                        involved_characters=[cid, tid],
+                                        suggestion=f"让{char.name}基于错误的认知做出行动——读者会替ta着急",
+                                    )
+                                )
 
         # 按强度排序
         self.tension_points.sort(key=lambda t: t.intensity, reverse=True)
@@ -433,17 +442,21 @@ class TheoryOfMindEngine:
 
                 if affected:
                     action = f"{char.name}正在追求目标「{top_goal.description}」（优先级{top_goal.priority}）"
-                    rationale = f"基于最近更新的信念：{affected[-1].proposition}={affected[-1].value}"
-                    tendencies.append(ActionTendency(
-                        character_id=cid,
-                        action=action,
-                        rationale=rationale,
-                        strength=top_goal.priority / 5.0
-                    ))
+                    rationale = (
+                        f"基于最近更新的信念：{affected[-1].proposition}={affected[-1].value}"
+                    )
+                    tendencies.append(
+                        ActionTendency(
+                            character_id=cid,
+                            action=action,
+                            rationale=rationale,
+                            strength=top_goal.priority / 5.0,
+                        )
+                    )
 
         # 检测行动冲突
         for i, t1 in enumerate(tendencies):
-            for t2 in tendencies[i + 1:]:
+            for t2 in tendencies[i + 1 :]:
                 t1.conflicts_with.append(t2.character_id)
                 t2.conflicts_with.append(t1.character_id)
 
@@ -463,11 +476,11 @@ class TheoryOfMindEngine:
                     "description": tp.description,
                     "intensity": tp.intensity,
                     "involved": tp.involved_characters,
-                    "suggestion": tp.suggestion
+                    "suggestion": tp.suggestion,
                 }
                 for tp in self.tension_points
             ],
-            "current_chapter": self.current_chapter
+            "current_chapter": self.current_chapter,
         }
         for cid, char in self.characters.items():
             snapshot["characters"][cid] = {
@@ -477,16 +490,13 @@ class TheoryOfMindEngine:
                         "value": v.value,
                         "confidence": v.confidence,
                         "source": v.source.value,
-                        "is_erroneous": v.is_erroneous
+                        "is_erroneous": v.is_erroneous,
                     }
                     for k, v in char.world_beliefs.items()
                 },
                 "about_others": {
                     target: {
-                        k: {
-                            "value": v.value,
-                            "confidence": v.confidence
-                        }
+                        k: {"value": v.value, "confidence": v.confidence}
                         for k, v in beliefs.items()
                     }
                     for target, beliefs in char.about_others.items()
@@ -495,12 +505,12 @@ class TheoryOfMindEngine:
                     {"description": g.description, "priority": g.priority}
                     for g in char.active_goals
                 ],
-                "secret_count": len(char.known_secrets)
+                "secret_count": len(char.known_secrets),
             }
         return snapshot
 
     @classmethod
-    def from_snapshot(cls, snapshot: dict) -> "TheoryOfMindEngine":
+    def from_snapshot(cls, snapshot: dict) -> TheoryOfMindEngine:
         """从快照恢复 ToM 引擎"""
         engine = cls()
         engine.current_chapter = snapshot.get("current_chapter", 0)
@@ -512,7 +522,7 @@ class TheoryOfMindEngine:
                     value=b["value"],
                     confidence=b.get("confidence", 1.0),
                     source=BeliefSource(b.get("source", "目击")),
-                    is_erroneous=b.get("is_erroneous", False)
+                    is_erroneous=b.get("is_erroneous", False),
                 )
         # 重新检测张力点（会自动重建索引）
         engine.detect_tension()
@@ -530,7 +540,7 @@ class TheoryOfMindEngine:
         # 重新检测张力
         self.detect_tension()
 
-    def validate_action(self, char_id: str, action_description: str) -> Optional[str]:
+    def validate_action(self, char_id: str, action_description: str) -> str | None:
         """校验一个行动是否与角色的信念状态一致
 
         返回 None 表示一致，返回字符串描述不一致的原因
@@ -542,23 +552,105 @@ class TheoryOfMindEngine:
 
         # 检查实体提取是否把非角色词汇误认为角色名
         # 常见非角色词列表
-        non_character_words = {'然而','值得注意的是','不可否认','毫无疑问','愈发','似乎','可能','或许','大概',
-                               '已经','还是','只是','不过','但是','因此','然而','突然','忽然','终于',
-                               '所以','因为','虽然','尽管','如果','然后','接着','同时','另外','此外',
-                               '毫无','无疑','显而易见','由此可见','换言之','其一','其二','首先','其次','最后',
-                               '翻过来','站起来','坐下去','转过身','低下头','抬起头','走上前','退后','推开门','关上门',
-                               '口袋里','衣兜里','背包里','抽屉里','盒子里','箱子里','柜子里','书架里',
-                               '是有人','是一个','是一个','有一种','有一股',
-                               '没有人','什么','还是','他就','他就','她就','她就',
-                               '你确','你是','我是','他是','她是','它是',
-                               '你在','我在','他在','她在',
-                               '带着','知道','告诉他','告诉他','回忆起','想起',}
+        non_character_words = {
+            "然而",
+            "值得注意的是",
+            "不可否认",
+            "毫无疑问",
+            "愈发",
+            "似乎",
+            "可能",
+            "或许",
+            "大概",
+            "已经",
+            "还是",
+            "只是",
+            "不过",
+            "但是",
+            "因此",
+            "突然",
+            "忽然",
+            "终于",
+            "所以",
+            "因为",
+            "虽然",
+            "尽管",
+            "如果",
+            "然后",
+            "接着",
+            "同时",
+            "另外",
+            "此外",
+            "毫无",
+            "无疑",
+            "显而易见",
+            "由此可见",
+            "换言之",
+            "其一",
+            "其二",
+            "首先",
+            "其次",
+            "最后",
+            "翻过来",
+            "站起来",
+            "坐下去",
+            "转过身",
+            "低下头",
+            "抬起头",
+            "走上前",
+            "退后",
+            "推开门",
+            "关上门",
+            "口袋里",
+            "衣兜里",
+            "背包里",
+            "抽屉里",
+            "盒子里",
+            "箱子里",
+            "柜子里",
+            "书架里",
+            "是有人",
+            "是一个",
+            "有一种",
+            "有一股",
+            "没有人",
+            "什么",
+            "他就",
+            "她就",
+            "你确",
+            "你是",
+            "我是",
+            "他是",
+            "她是",
+            "它是",
+            "你在",
+            "我在",
+            "他在",
+            "她在",
+            "带着",
+            "知道",
+            "告诉他",
+            "回忆起",
+            "想起",
+        }
 
         if char_id in non_character_words:
             return None
 
-        negations = ["举报", "背叛", "出卖", "伤害", "攻击", "杀死", "陷害",
-                     "不", "没", "否认", "反对", "拒绝"]
+        negations = [
+            "举报",
+            "背叛",
+            "出卖",
+            "伤害",
+            "攻击",
+            "杀死",
+            "陷害",
+            "不",
+            "没",
+            "否认",
+            "反对",
+            "拒绝",
+        ]
 
         for prop, belief in char.world_beliefs.items():
             if belief.is_erroneous:
@@ -580,12 +672,15 @@ class TheoryOfMindEngine:
                     )
 
             # 如果信念的具体值出现在行动中，且与否定关联 → 冲突
-            if isinstance(belief.value, str) and belief.value:
-                if belief.value in action_description:
-                    has_negation = any(n in action_description for n in negations)
-                    if has_negation:
-                        return (
-                            f"{char.name}相信「{prop}={belief.value}」，"
-                            f"但行动与之一致却包含否定词：{action_description[:50]}"
-                        )
+            if (
+                isinstance(belief.value, str)
+                and belief.value
+                and belief.value in action_description
+            ):
+                has_negation = any(n in action_description for n in negations)
+                if has_negation:
+                    return (
+                        f"{char.name}相信「{prop}={belief.value}」，"
+                        f"但行动与之一致却包含否定词：{action_description[:50]}"
+                    )
         return None

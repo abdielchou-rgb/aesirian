@@ -4,21 +4,22 @@
       → 质量评分（字数 + InkOS 去AI + 门禁）→ 达标提前返回
       → 未达标吸收反馈进入下一轮（最多 3 轮）
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from core.context.engine import ContextConfig
 from core.context.assembler import ContextAssembler
-from core.quality.ai_tell_detector import AITellDetector
+from core.context.engine import ContextConfig
 from core.llm_engine import get_llm_engine
+from core.quality.ai_tell_detector import AITellDetector
 
 
 @dataclass
 class GenerationResult:
     text: str = ""
     score: int = 0
-    variants: list = field(default_factory=list)       # [(text, score)]
+    variants: list = field(default_factory=list)  # [(text, score)]
     rounds: int = 0
     style_prompt: str = ""
     context_tokens: int = 0
@@ -36,9 +37,14 @@ class GenerationPipeline:
 
     # ─── 主入口 ───
 
-    def generate_with_quality(self, project_id: str, instruction: str,
-                              word_target: int = 500,
-                              rounds: int = 2, variants_per_round: int = 3) -> GenerationResult:
+    def generate_with_quality(
+        self,
+        project_id: str,
+        instruction: str,
+        word_target: int = 500,
+        rounds: int = 2,
+        variants_per_round: int = 3,
+    ) -> GenerationResult:
         instruction = instruction.strip()
         if not instruction:
             return GenerationResult()
@@ -51,6 +57,7 @@ class GenerationPipeline:
         project_text = self._get_project_text(project_id)
         if project_text:
             from core.style.voice_profile import VoiceProfileInterview
+
             vp = VoiceProfileInterview().extract_from_text(project_text)
             style_prompt = vp.to_prompt()
 
@@ -67,7 +74,8 @@ class GenerationPipeline:
                 ctx_block = ac.text if round_idx == 0 else ac.text + f"\n\n## 修改建议\n{feedback}"
                 variant = self.llm.generate_variant(
                     ctx_block,
-                    ("\n\n" + style_prompt if style_prompt else "") + f"\n\n## 本次写作指令\n{instruction}",
+                    ("\n\n" + style_prompt if style_prompt else "")
+                    + f"\n\n## 本次写作指令\n{instruction}",
                     word_target=word_target,
                     temperature=temp,
                 )
@@ -111,16 +119,22 @@ class GenerationPipeline:
 
         # 门禁检查（预生成 G1-G5）
         try:
-            from core.entity_extractor import EntityExtractor
             from core.consistency_gates import GateLevel
+            from core.entity_extractor import EntityExtractor
+
             project = self._get_project_runtime(project_id)
             if project:
                 ctx = EntityExtractor.to_gate_context(text)
-                results = project.gates.pre_generation_check(text, context={
-                    "facts": ctx["facts"], "char_actions": ctx["char_actions"],
-                    "identity_changes": ctx["identity_changes"],
-                    "events": ctx["events"], "movements": ctx["movements"],
-                })
+                results = project.gates.pre_generation_check(
+                    text,
+                    context={
+                        "facts": ctx["facts"],
+                        "char_actions": ctx["char_actions"],
+                        "identity_changes": ctx["identity_changes"],
+                        "events": ctx["events"],
+                        "movements": ctx["movements"],
+                    },
+                )
                 for g in results:
                     if g.level == GateLevel.BLOCK:
                         score -= 20
@@ -143,10 +157,10 @@ class GenerationPipeline:
         import re as _re
 
         def stats(t):
-            sents = [s for s in _re.split(r'[。！？]', t) if len(s.strip()) > 2]
+            sents = [s for s in _re.split(r"[。！？]", t) if len(s.strip()) > 2]
             avg = sum(len(s) for s in sents) / max(len(sents), 1)
             dl = sum(1 for ln in t.splitlines() if any(m in ln for m in '「」""'))
-            lines = max(len([l for l in t.splitlines() if l.strip()]), 1)
+            lines = max(len([ln for ln in t.splitlines() if ln.strip()]), 1)
             return avg, dl / lines
 
         avg_a, dl_a = stats(a)
@@ -159,9 +173,10 @@ class GenerationPipeline:
         """从变体常见问题生成下轮修改建议"""
         best = max(variants, key=lambda x: x[1])[0] if variants else ""
         issues = self.detector.detect(best) if best else []
-        lines = [f"上一轮最佳得分 {max(s for _, s in variants) if variants else 0}，以下问题需修正："]
-        for iss in issues:
-            lines.append(f"- [{iss['rule']}] {iss['message']}")
+        lines = [
+            f"上一轮最佳得分 {max(s for _, s in variants) if variants else 0}，以下问题需修正：",
+            *[f"- [{iss['rule']}] {iss['message']}" for iss in issues],
+        ]
         if not issues:
             lines.append("- 增加感官细节与句式长短变化，避免均匀段落")
         return "\n".join(lines)
@@ -175,6 +190,7 @@ class GenerationPipeline:
     def _get_project_runtime(self, project_id: str):
         try:
             from core.orchestrator import Orchestrator
+
             return Orchestrator(store=self.store).get_project(project_id)
         except Exception:
             return None

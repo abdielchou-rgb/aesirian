@@ -1,12 +1,14 @@
 from __future__ import annotations
+
 """Netflix Redundancy gates — 第二屏信息冗余门禁.
 
 核心原则：关键信息必须在信道中重复，因为接收方可能没在看（第二屏读者）。
 在小说中对应：核心设定、角色目标、伏笔等需要周期性复述。
 """
 
-from .base import BaseGate
 from wenjian.models import GateResult, GateSeverity
+
+from .base import BaseGate
 
 
 class NFR01_CoreSettingRecap(BaseGate):
@@ -48,7 +50,9 @@ class NFR03_ForeshadowRepeat(BaseGate):
 
     gate_id = "NFR-03"
     name = "伏笔重复门禁"
-    description = "关键伏笔在回收前必须在不同位置被至少提及 2 次（不是 1 次），保证跳读读者也能注意到"
+    description = (
+        "关键伏笔在回收前必须在不同位置被至少提及 2 次（不是 1 次），保证跳读读者也能注意到"
+    )
     severity = GateSeverity.BLOCK
 
     def evaluate(self, gap_id: str, mention_count: int, min_mentions: int = 2) -> GateResult:
@@ -74,8 +78,18 @@ class NFR04_JumpReaderAnchor(BaseGate):
             return self.pass_result(message="首章无需跳读锚点")
 
         # Heuristic: check for references to previous events
-        recap_markers = ["前面", "之前", "上回", "上次", "刚才", "那时",
-                         "经过", "自从", "从那以后", "还记得"]
+        recap_markers = [
+            "前面",
+            "之前",
+            "上回",
+            "上次",
+            "刚才",
+            "那时",
+            "经过",
+            "自从",
+            "从那以后",
+            "还记得",
+        ]
         character_refs = ["他", "她", "他们", "这个", "那个"]
 
         opening = opening_text[:200]
@@ -85,8 +99,12 @@ class NFR04_JumpReaderAnchor(BaseGate):
         if not has_recap and not has_char_ref:
             return self.fail_result(
                 message=f"第{chapter_number}章前200字无上下文锚点，跳读读者可能无法恢复理解",
-                details={"chapter": chapter_number, "has_recap_marker": has_recap, "has_character_ref": has_char_ref,
-                         "suggestion": "加入回顾性短语，如'经过前几日的调查'" },
+                details={
+                    "chapter": chapter_number,
+                    "has_recap_marker": has_recap,
+                    "has_character_ref": has_char_ref,
+                    "suggestion": "加入回顾性短语，如'经过前几日的调查'",
+                },
             )
         return self.pass_result(details={"chapter": chapter_number, "has_recap_marker": has_recap})
 
@@ -106,6 +124,9 @@ class NFR05_SubtextLayer(BaseGate):
         if not has_deep_layer:
             return self.fail_result(
                 message=f"第{chapter_number}章缺少深层叙事层内容",
-                details={"chapter": chapter_number, "suggestion": "加入一个环境细节或器物象征作为深层回报"},
+                details={
+                    "chapter": chapter_number,
+                    "suggestion": "加入一个环境细节或器物象征作为深层回报",
+                },
             )
         return self.pass_result(details={"chapter": chapter_number})

@@ -12,36 +12,44 @@ Replaces raw requests-based LLM engine with Pydantic AI for:
 """
 
 from __future__ import annotations
-from dataclasses import dataclass, field
-from typing import Optional, AsyncIterator
+
+import logging
+import os
+from collections.abc import AsyncIterator
+
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models import Model
-from pydantic_ai.models.openai import OpenAIChatModel as OpenAIModel
 from pydantic_ai.models.anthropic import AnthropicModel
 from pydantic_ai.models.google import GoogleModel as GeminiModel
-from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.models.openai import OpenAIChatModel as OpenAIModel
 from pydantic_ai.providers.anthropic import AnthropicProvider
 from pydantic_ai.providers.google import GoogleProvider
-import os
-import logging
+from pydantic_ai.providers.openai import OpenAIProvider
+
+from core.observability import trace_chapter_generation, track_llm_call
 
 logger = logging.getLogger(__name__)
 
 
 # ─── Output Models ───
 
+
 class ChapterDraft(BaseModel):
     """结构化章节输出"""
+
     title: str = Field(description="章节标题（≤15字）", max_length=60)
     text: str = Field(description="章节正文（200-500字）", min_length=100, max_length=1000)
     hooks: list[str] = Field(default_factory=list, description="结尾留钩（1-3个）")
-    tension_points_addressed: list[str] = Field(default_factory=list, description="本章处理的张力点")
+    tension_points_addressed: list[str] = Field(
+        default_factory=list, description="本章处理的张力点"
+    )
     characters_appeared: list[str] = Field(default_factory=list, description="出场角色")
 
 
 class SceneConstraints(BaseModel):
     """场景约束输出"""
+
     tension_points: list[dict] = Field(default_factory=list)
     character_tendencies: list[dict] = Field(default_factory=list)
     reader_state: dict = Field(default_factory=dict)
@@ -52,6 +60,7 @@ class SceneConstraints(BaseModel):
 
 class SimulationBranch(BaseModel):
     """假设推演分支"""
+
     title: str = Field(max_length=10)
     summary: str = Field(max_length=80)
     key_event: str = Field(max_length=40)
@@ -59,6 +68,7 @@ class SimulationBranch(BaseModel):
 
 class SimulationResult(BaseModel):
     """假设推演完整结果"""
+
     hypothesis: str
     tensions: list[dict]
     branches: list[SimulationBranch]
@@ -68,6 +78,7 @@ class SimulationResult(BaseModel):
 
 class WorldlinePreview(BaseModel):
     """世界线预览"""
+
     id: str
     genre: str
     structure: str
@@ -78,6 +89,7 @@ class WorldlinePreview(BaseModel):
 
 class DivergenceResult(BaseModel):
     """碎片发散结果"""
+
     worldlines: list[WorldlinePreview]
     llm_used: bool
     fragment_count: int
@@ -85,6 +97,7 @@ class DivergenceResult(BaseModel):
 
 class GenerationSuggestion(BaseModel):
     """续写建议"""
+
     type: str = Field(pattern="^(tension|character|reader|pattern|llm)$")
     text: str = Field(max_length=40)
     rationale: str = Field(max_length=20)
@@ -93,10 +106,12 @@ class GenerationSuggestion(BaseModel):
 
 class SuggestionsResult(BaseModel):
     """续写建议列表"""
+
     suggestions: list[GenerationSuggestion] = Field(min_length=3, max_length=5)
 
 
 # ─── Tool Definitions ───
+
 
 class NarrativeTools:
     """叙事工具集 - 供 Agent 调用"""
@@ -180,6 +195,7 @@ class NarrativeTools:
 
 # ─── Model Factory ───
 
+
 def create_model(provider: str = None) -> Model:
     """根据配置创建模型实例，支持多供应商自动回退"""
     # 优先级：环境变量指定 > 自动检测可用密钥
@@ -194,7 +210,7 @@ def create_model(provider: str = None) -> Model:
         ("anthropic", "ANTHROPIC_API_KEY", "claude-3-haiku-20240307"),
         # Google
         ("google", "GOOGLE_API_KEY", "gemini-1.5-flash"),
-        # Ollama (local)
+        # Ollama 本地
         ("openai", "OLLAMA_HOST", "qwen2.5:7b", "{OLLAMA_HOST}/v1"),
     ]
 
@@ -206,17 +222,19 @@ def create_model(provider: str = None) -> Model:
         try:
             if prov == "openai":
                 base = base_url[0] if base_url else "https://api.openai.com/v1"
-                base = base.replace("{OLLAMA_HOST}", os.environ.get("OLLAMA_HOST", "http://localhost:11434"))
+                base = base.replace(
+                    "{OLLAMA_HOST}", os.environ.get("OLLAMA_HOST", "http://localhost:11434")
+                )
                 return OpenAIModel(
                     model_name,
                     provider=OpenAIProvider(api_key=api_key, base_url=base),
                 )
-            elif prov == "anthropic":
+            if prov == "anthropic":
                 return AnthropicModel(
                     model_name,
                     provider=AnthropicProvider(api_key=api_key),
                 )
-            elif prov == "google":
+            if prov == "google":
                 return GeminiModel(
                     model_name,
                     provider=GoogleProvider(api_key=api_key),
@@ -225,10 +243,13 @@ def create_model(provider: str = None) -> Model:
             logger.warning(f"Failed to create {prov} model {model_name}: {e}")
             continue
 
-    raise RuntimeError("No LLM provider configured. Set OPENAI_API_KEY, DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY")
+    raise RuntimeError(
+        "No LLM provider configured. Set OPENAI_API_KEY, DEEPSEEK_API_KEY, ANTHROPIC_API_KEY, or GOOGLE_API_KEY"
+    )
 
 
 # ─── Agent Factory ───
+
 
 def create_chapter_agent(model: Model = None, deps_type: type = dict) -> Agent:
     """创建章节生成 Agent"""
@@ -312,6 +333,7 @@ def create_suggestions_agent(model: Model = None, deps_type: type = dict) -> Age
 
 # ─── High-Level Interface ───
 
+
 class PydanticAILEngine:
     """
     Pydantic AI 引擎统一接口
@@ -357,8 +379,8 @@ class PydanticAILEngine:
             self._divergence_agent = create_divergence_agent(self._model)
             self._suggestions_agent = create_suggestions_agent(self._model)
             logger.info(f"PydanticAI Engine initialized with model: {self._model}")
-        except Exception as e:
-            logger.error(f"PydanticAI Engine initialization failed: {e}")
+        except Exception:
+            logger.exception("PydanticAI Engine initialization failed")
             self._model = None
 
     def available(self) -> bool:
@@ -387,9 +409,7 @@ class PydanticAILEngine:
 
         try:
             with trace_chapter_generation(
-                context.get("project_id", "unknown"),
-                context.get("current_chapter", 1),
-                premise
+                context.get("project_id", "unknown"), context.get("current_chapter", 1), premise
             ):
                 result = self._chapter_agent.run_sync(
                     f"前提：{premise}\n目标字数：{word_target}\n上下文：{context}",
@@ -402,11 +422,13 @@ class PydanticAILEngine:
                     project_id=context.get("project_id"),
                 )
                 return result.output.text
-        except Exception as e:
-            logger.error(f"Chapter generation failed: {e}")
+        except Exception:
+            logger.exception("Chapter generation failed")
             return ""
 
-    async def generate_chapter_stream(self, premise: str, context: dict = None, word_target: int = 300) -> AsyncIterator[str]:
+    async def generate_chapter_stream(
+        self, premise: str, context: dict = None, word_target: int = 300
+    ) -> AsyncIterator[str]:
         """流式生成章节"""
         self._ensure_initialized()
         if not self.available():
@@ -437,19 +459,29 @@ class PydanticAILEngine:
                 deps=deps,
             )
             return result.output.model_dump()
-        except Exception as e:
-            logger.error(f"Scene constraints generation failed: {e}")
+        except Exception:
+            logger.exception("Scene constraints generation failed")
             return {}
 
     # ── Simulation ──
 
-    def simulate_hypothesis(self, hypothesis: str, belief_changes: list[dict],
-                           context: dict = None, branch_count: int = 3) -> dict:
+    def simulate_hypothesis(
+        self,
+        hypothesis: str,
+        belief_changes: list[dict],
+        context: dict = None,
+        branch_count: int = 3,
+    ) -> dict:
         """假设推演"""
         self._ensure_initialized()
         if not self.available():
-            return {"hypothesis": hypothesis, "tensions": [], "branches": [],
-                    "applied_beliefs": [], "llm_used": False}
+            return {
+                "hypothesis": hypothesis,
+                "tensions": [],
+                "branches": [],
+                "applied_beliefs": [],
+                "llm_used": False,
+            }
 
         deps = {"project": context, "hypothesis": hypothesis, "belief_changes": belief_changes}
         try:
@@ -458,10 +490,15 @@ class PydanticAILEngine:
                 deps=deps,
             )
             return result.output.model_dump()
-        except Exception as e:
-            logger.error(f"Simulation failed: {e}")
-            return {"hypothesis": hypothesis, "tensions": [], "branches": [],
-                    "applied_beliefs": [], "llm_used": False}
+        except Exception:
+            logger.exception("Simulation failed")
+            return {
+                "hypothesis": hypothesis,
+                "tensions": [],
+                "branches": [],
+                "applied_beliefs": [],
+                "llm_used": False,
+            }
 
     # ── Divergence ──
 
@@ -478,8 +515,8 @@ class PydanticAILEngine:
                 deps=deps,
             )
             return result.output.model_dump()
-        except Exception as e:
-            logger.error(f"Divergence failed: {e}")
+        except Exception:
+            logger.exception("Divergence failed")
             return {"worldlines": [], "llm_used": False, "fragment_count": len(fragments)}
 
     # ── Suggestions ──
@@ -497,14 +534,15 @@ class PydanticAILEngine:
                 deps=deps,
             )
             return [s.model_dump() for s in result.output.suggestions]
-        except Exception as e:
-            logger.error(f"Suggestions generation failed: {e}")
+        except Exception:
+            logger.exception("Suggestions generation failed")
             return []
 
     # ── Variant Generation (Sudowrite-style) ──
 
-    def generate_variant(self, context_text: str, instruction: str,
-                         word_target: int = 500, temperature: float = 0.7) -> str:
+    def generate_variant(
+        self, context_text: str, instruction: str, word_target: int = 500, temperature: float = 0.7
+    ) -> str:
         """多变体生成"""
         self._ensure_initialized()
         if not self.available():
@@ -527,13 +565,15 @@ class PydanticAILEngine:
 
         try:
             result = variant_agent.run_sync(f"{context_text}\n\n{instruction}")
-            return result.output
-        except Exception as e:
-            logger.error(f"Variant generation failed: {e}")
+        except Exception:
+            logger.exception("Variant generation failed")
             return ""
+        else:
+            return result.output
 
 
 # ─── Singleton Getter ───
+
 
 def get_pydantic_ai_engine() -> PydanticAILEngine:
     """获取 PydanticAI 引擎单例"""
@@ -541,6 +581,7 @@ def get_pydantic_ai_engine() -> PydanticAILEngine:
 
 
 # ─── Backward Compatibility Wrapper ───
+
 
 class LLMEngineCompat:
     """
@@ -570,6 +611,7 @@ class LLMEngineCompat:
         suggestions = self._engine.generate_suggestions(context)
         # 转换为旧格式
         from core.llm_engine import LLMSuggestion
+
         return [
             LLMSuggestion(
                 type=s["type"],
@@ -587,9 +629,12 @@ class LLMEngineCompat:
     def generate_chapter(self, premise: str, context: dict = None, word_target: int = 300) -> str:
         return self._engine.generate_chapter(premise, context, word_target)
 
-    def generate_variant(self, context_text: str, instruction: str,
-                         word_target: int = 500, temperature: float = None) -> str:
-        return self._engine.generate_variant(context_text, instruction, word_target, temperature or 0.7)
+    def generate_variant(
+        self, context_text: str, instruction: str, word_target: int = 500, temperature: float = None
+    ) -> str:
+        return self._engine.generate_variant(
+            context_text, instruction, word_target, temperature or 0.7
+        )
 
 
 def get_llm_engine() -> LLMEngineCompat:

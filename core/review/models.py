@@ -7,17 +7,20 @@
 说明：本模块保持零外部运行时依赖（仅 pydantic / sqlmodel），
 业务推断逻辑全部在 sync_engine.py。
 """
+
 from __future__ import annotations
 
 import json
 import time
-from typing import Any, Optional
+from typing import Any
 
 from pydantic import BaseModel, Field
 
 try:  # sqlmodel 可选：api_server 进程可用；纯单元测试环境缺失时不阻塞
-    from sqlmodel import SQLModel, Field as SQLField
     from datetime import datetime
+
+    from sqlmodel import Field as SQLField
+    from sqlmodel import SQLModel
 
     _HAS_SQLMODEL = True
 except Exception:  # pragma: no cover
@@ -25,6 +28,7 @@ except Exception:  # pragma: no cover
 
 
 # ─────────── 纯 Python 状态模型（不依赖 SQLModel）───────────
+
 
 def now_ms() -> int:
     return int(time.time() * 1000)
@@ -36,27 +40,39 @@ class ReviewState(BaseModel):
     project_id: str = ""
     chapter_number: int = 1
     sync_mode: str = "realtime"  # realtime | manual | locked
-    locks: dict[str, bool] = Field(default_factory=lambda: {
-        "draft": False, "framework": False, "chapters": False, "characters": False,
-    })
+    locks: dict[str, bool] = Field(
+        default_factory=lambda: {
+            "draft": False,
+            "framework": False,
+            "chapters": False,
+            "characters": False,
+        }
+    )
 
     # 四视图数据
     draft: dict = Field(default_factory=lambda: {"content": "", "version": 1, "last_modified": 0})
-    framework: dict = Field(default_factory=lambda: {
-        "template": "three_act",
-        "acts": [],
-        "beats": [],
-        "arcs": [],
-        "version": 1,
-        "last_modified": 0,
-    })
+    framework: dict = Field(
+        default_factory=lambda: {
+            "template": "three_act",
+            "acts": [],
+            "beats": [],
+            "arcs": [],
+            "version": 1,
+            "last_modified": 0,
+        }
+    )
     chapters: list[dict] = Field(default_factory=list)
     characters: list[dict] = Field(default_factory=list)
 
     # 同步状态
-    sync_status: dict[str, str] = Field(default_factory=lambda: {
-        "draft": "synced", "framework": "synced", "chapters": "synced", "characters": "synced",
-    })
+    sync_status: dict[str, str] = Field(
+        default_factory=lambda: {
+            "draft": "synced",
+            "framework": "synced",
+            "chapters": "synced",
+            "characters": "synced",
+        }
+    )
 
     # 变更历史
     change_history: list[dict] = Field(default_factory=list)
@@ -83,10 +99,12 @@ class SyncRequest(BaseModel):
     source: str  # draft | framework | chapters | characters
     content: dict = Field(default_factory=dict)  # 新内容
     mode: str = "realtime"  # realtime | manual | force
-    options: dict = Field(default_factory=lambda: {
-        "target_views": [],  # 空=全部目标
-        "force": False,      # 忽略锁定
-    })
+    options: dict = Field(
+        default_factory=lambda: {
+            "target_views": [],  # 空=全部目标
+            "force": False,  # 忽略锁定
+        }
+    )
 
 
 class ResolveRequest(BaseModel):
@@ -99,6 +117,7 @@ class ResolveRequest(BaseModel):
 # ─────────── SQLModel 持久化模型（four-view-review-plan.md §3.2）───────────
 
 if _HAS_SQLMODEL:
+
     class ReviewSnapshot(SQLModel, table=True):
         """审查页面快照——每次同步后保存"""
 
@@ -117,9 +136,9 @@ if _HAS_SQLMODEL:
         created_at: datetime = SQLField(default_factory=lambda: datetime.now())
 
         @classmethod
-        def from_state(cls, state: ReviewState, summary: str = "") -> "ReviewSnapshot":
+        def from_state(cls, state: ReviewState, summary: str = "") -> ReviewSnapshot:
             return cls(
-                id=f"rs_{state.project_id}_{int(time.time()*1000)}",
+                id=f"rs_{state.project_id}_{int(time.time() * 1000)}",
                 project_id=state.project_id,
                 chapter_number=state.chapter_number,
                 draft_json=json.dumps(state.draft, ensure_ascii=False),
@@ -146,4 +165,4 @@ if _HAS_SQLMODEL:
         resolved: bool = False
         resolution: str = ""  # accept_source | accept_target | merge | manual
         created_at: datetime = SQLField(default_factory=lambda: datetime.now())
-        resolved_at: Optional[datetime] = SQLField(default=None)
+        resolved_at: datetime | None = SQLField(default=None)
