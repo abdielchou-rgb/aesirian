@@ -115,8 +115,8 @@ python tools/seed_demo_data.py --force    # 强制用 examples/luoyang/ch1.txt �
 ## 已知边界（Known gaps · 0.2.0）
 
 - **真人内测数据回收中**：M3 真人写作循环走 0.2.x 迭代，与开源不互斥。
-- **Electron 桌面安装包**需 Windows 真机验证（0.2.0 暂以源码/Release 安装包形态交付）。
-- **mypy untyped 补注**（core 全量 strict 化 ~600 项）列为 P1 技术债；ruff/mypy 已启用**全量 CI gate**。
+- **Windows 桌面安装包**：`Æsirian Setup 0.2.0.exe` 已随 GitHub Release 附赠（NSIS，x64，真机启动烟测通过）；L3 浏览器回归（Playwright）与多机型待 0.2.x 补跑。
+- **mypy 全量 strict 补注**（core ~600 项）与 ruff 的 T20/PTH 风格迁移列为 P1 技术债；ruff/mypy 已启用**全量 CI gate**，新增代码被强制保持干净。
 
 ## 参与贡献
 
