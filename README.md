@@ -4,11 +4,11 @@
 > Æsirian 不只生成文本：它维护「作者意图 / 文本事实 / 读者体验」三重视角，
 > 用理论心智（ToM）、一致性门禁与方法论注册表，把 AI 写作从"续写器"变成"可信的创作协作者"。
 
-[![CI](https://img.shields.io/github/actions/workflow/status/OWNER/aesirian/ci.yml?branch=main&label=CI&logo=github)](https://github.com/OWNER/aesirian/actions/workflows/ci.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/abdielchou-rgb/aesirian/ci.yml?branch=main&label=CI&logo=github)](https://github.com/abdielchou-rgb/aesirian/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-blue)](pyproject.toml)
 
-> ⚠️ README badges 中的 `OWNER` 会在推送到 GitHub 后替换为实际账号（见 Release 说明）。
+> 状态：CI badge 指向 `abdielchou-rgb/aesirian` 的 GitHub Actions；首个 commit 推送后 badge 生效。
 
 ## 这是什么
 
