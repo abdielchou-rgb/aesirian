@@ -22,15 +22,18 @@ python -m pip install -r requirements.txt   # 或 uv sync
 
 ## CI 语义（重要）
 
-`.github/workflows/ci.yml`：
+`.github/workflows/ci.yml` 三个 job 均为**硬性全量 gate**：
 
-1. **test job**：pytest × Python 3.10/3.11/3.12 + `tools/compat_matrix_check.py` —— 硬性绿。
-2. **ruff / mypy job**：当前为「变更文件增量 gate」：
-   - 只对 PR 相对 `main` 改动的 Python 文件跑（`git diff origin/main...HEAD`）。
-   - 全仓存量债（工程目录 ~1900 项 lint、`core/` ~410 项 mypy）**故意不为绿**，治理计划在 0.2.1
-     清零后把 gate 切为全量。**新增代码请不要引入新的 lint/类型问题**；
-     若你改动的文件本身带存量债，尽量顺手清理其所在函数/附近行，减少整体债务。
-   - 静态检查只装 ruff/mypy，不装 torch —— 不要写需要 torch 导入的顶层语句。
+1. **test job**：pytest × Python 3.10/3.11/3.12 + `tools/compat_matrix_check.py`。
+2. **ruff job（全量）**：`ruff check core bridge tools tests mcp_server.py mcp_server_fast.py`。
+   - select 已剔除 T20(print)/PTH(pathlib)（项目既有风格），并忽略 E501/E402/F403
+     （长字符串/顶层 sys.path 延迟导入/registry 星号再导出）——细节见 `pyproject.toml`。
+   - 静态检查只装 ruff，不装 torch —— 不要写需要 torch 导入的顶层语句。
+3. **mypy job（core/ 全量）**：`mypy core/ --ignore-missing-imports`。
+   - 基线 = strict_optional + 已注解代码全量严格检查；untyped def / 隐式 Optional / Any 返回为 legacy 豁免。
+   - **新增/修改已注解代码不要引入新的 mypy 错误**；全量 untyped 补注（~600 项）列为 P1 技术债。
+   - 库类型局限（pydantic-ai `Agent(output_type=...)`、SQLModel 映射列 `.desc()`、logfire stub）允许窄域
+     `# type: ignore[<code>]` + 一行理由。
 
 ## 提交规范
 

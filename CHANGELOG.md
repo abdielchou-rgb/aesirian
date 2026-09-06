@@ -24,6 +24,9 @@
 - 版本号 0.1.0 → 0.2.0（`pyproject.toml`、`electron_ide/package.json`、运行时可观测版本戳）。
 - 示例正文独立为 `examples/luoyang/ch1.txt`；`tools/seed_demo_data.py` 默认不覆盖 curated 演示 JSON（`--force` 重新生成），无数据库环境下可自举。
 - `forward_derive`：拒绝退化（空）的 LLM 结构化输出，自动回落到规则路径，保证四卡结构始终可用。
+- **ruff 工程源码全量清零并切全量 CI gate**（select 剔除 T20/PTH、忽略 E501/E402/F403，见 pyproject）。
+- **mypy core/ 全量清零并切全量 CI gate**（strict_optional + 已注解代码全量；untyped 补注列 P1）。
+- 修复：`pydantic_ai_engine` 缺失 `track_llm_call`/`trace_chapter_generation` 导入（潜在 NameError）；`get_recommendations` 双分支返回类型不一致；动态插件加载 None 防护。
 
 ### Fixed
 

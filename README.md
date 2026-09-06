@@ -103,8 +103,8 @@ python tools/seed_demo_data.py --force    # 强制用 examples/luoyang/ch1.txt �
 ## 测试与质量
 
 - `python -m pytest tests/ -q` → **109 passed**（`tests/l3_browser_test.py` 需 Windows+Electron，独立运行）。
-- CI（GitHub Actions）三 Python 版本矩阵 + `tools/compat_matrix_check.py`（守护跨版本修复点）+ ruff/mypy **变更文件增量 gate**（全仓存量债治理见 `CONTRIBUTING.md`，列 0.2.1）。
-- 新增代码请保持 `ruff check` / `mypy` 干净（本仓 baseline 允许增量语义）。
+- CI（GitHub Actions）三个硬性全量 gate：pytest × 3.10/3.11/3.12 矩阵 + `tools/compat_matrix_check.py` + `ruff check core bridge tools tests mcp_server*.py` 全量 + `mypy core/ --ignore-missing-imports` 全量。
+- ruff select 剔除 T20/PTH（既有风格）并忽略 E501/E402/F403；mypy 基线 strict_optional + 已注解代码全量严格（untyped 补注列为 P1）——细节见 `pyproject.toml` 与 `CONTRIBUTING.md`。
 
 ## 示例与演示数据
 
@@ -116,7 +116,7 @@ python tools/seed_demo_data.py --force    # 强制用 examples/luoyang/ch1.txt �
 
 - **真人内测数据回收中**：M3 真人写作循环走 0.2.x 迭代，与开源不互斥。
 - **Electron 桌面安装包**需 Windows 真机验证（0.2.0 暂以源码/Release 安装包形态交付）。
-- **全仓 ruff/mypy 存量债**（工程目录 ~1900 项 lint / core ~410 项类型债）：计划 0.2.1 清零后把 CI 切为全量 gate。
+- **mypy untyped 补注**（core 全量 strict 化 ~600 项）列为 P1 技术债；ruff/mypy 已启用**全量 CI gate**。
 
 ## 参与贡献
 
