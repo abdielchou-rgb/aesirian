@@ -304,12 +304,17 @@ class TestAPIFlows:
         )
         d2 = r2.json()
         conflicts = d2.get("cross_chapter", [])
-        # 注：提取器对中文数字的覆盖有限——若触发则必须结构正确
+        # P0-3: CSN 数值矛盾检测器补齐了"三十岁→四十五岁"这类中文数词年龄矛盾
+        # （原提取器只认阿拉伯数字句式，中文数词年龄从未被检出）。
+        assert any(c["type"] == "csn_numeric_contradiction" for c in conflicts), (
+            f"应检出年龄矛盾（三十岁→四十五岁），实际 conflicts={conflicts}"
+        )
         for c in conflicts:
             assert c["type"] in (
                 "fact_contradiction",
                 "identity_shift_unexplained",
                 "belief_contradiction",
+                "csn_numeric_contradiction",
             )
             assert "severity" in c and "detail" in c
         log_ok(

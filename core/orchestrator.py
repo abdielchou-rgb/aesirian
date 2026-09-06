@@ -650,11 +650,13 @@ class Orchestrator:
                 kg=project.kg, tom=project.tom, reader=project.reader
             )
             temp_gates._current_chapter = max(project.current_chapter, 0)
+            # P0-3: 与 submit_chapter 一致，用真实 EntityExtractor 上下文
+            _gate_ctx = self._gate_entity_context(text)
             report = temp_gates.post_chapter_audit(
                 text,
-                plot_state={"open_threads": open_threads_data},
-                genre_contract={"required_scenes": []},
-                reader_context={"new_characters": 0, "new_locations": 0, "pov_switches": 0},
+                plot_state={"open_threads": open_threads_data, **_gate_ctx.get("plot_extra", {})},
+                genre_contract=_gate_ctx.get("genre_contract"),
+                reader_context=_gate_ctx.get("reader_context"),
                 matrix_state={"recent_patterns": project.cooldown.usage_history},
             )
             report_results = [r.to_dict() for r in report.results]
@@ -732,14 +734,20 @@ class Orchestrator:
         ]
 
         gate_ids = ["G6", "G7", "G8", "G9", "G10"]
+        # P0-3: 用真实 EntityExtractor 上下文替换硬编码空 reader_context/plot_state，
+        # 让 G8 认知负荷（新角色/地点/POV 切换）与 G6 因果链拿到真实入参。
+        # 此前写死 reader_context={"new_characters":0,...} 使 G8 永远 0 分通过，
+        # genre_contract={"required_scenes":[]} 使 G7 永远空契约跳过。
+        _gate_entity_ctx = self._gate_entity_context(text)
         with trace_gate_audit(project_id, chapter_num, gate_ids) as span:
             report = project.gates.post_chapter_audit(
                 text,
                 plot_state={
                     "open_threads": open_threads_data,
+                    **_gate_entity_ctx.get("plot_extra", {}),
                 },
-                genre_contract={"required_scenes": []},
-                reader_context={"new_characters": 0, "new_locations": 0, "pov_switches": 0},
+                genre_contract=_gate_entity_ctx.get("genre_contract"),
+                reader_context=_gate_entity_ctx.get("reader_context"),
                 matrix_state={"recent_patterns": project.cooldown.usage_history},
             )
             if span:
@@ -860,13 +868,48 @@ class Orchestrator:
         n_world = self._persist_world_elements(project)
         return {"characters": n_chars, "world_elements_created": n_world}
 
+    def _gate_entity_context(self, text: str) -> dict:
+        """P0-3: 构建 G6-G10 审计的真实入参上下文（替换硬编码空值）。
+
+        - reader_context: G8 认知负荷需要 new_characters/new_locations/pov_switches
+          （EntityExtractor.to_gate_context 已产出，此前被写死为 0 → G8 永远空转）
+        - genre_contract: G7 叙事节奏需要 required_scenes；单章无完整类型契约，
+          保留空契约并标注（避免把"无数据"误判为"违规"）
+        - plot_extra: G6 因果链需要 facts/events 供伏笔/悬念回收判断
+        """
+        from core.entity_extractor import EntityExtractor
+
+        ctx = EntityExtractor.to_gate_context(text)
+        reader_context = {
+            "new_characters": ctx.get("new_characters", 0) or 0,
+            "new_locations": ctx.get("new_locations", 0) or 0,
+            "pov_switches": ctx.get("pov_switches", 0) or 0,
+            "ai_marker_count": ctx.get("ai_marker_count", 0) or 0,
+            "hedge_word_count": ctx.get("hedge_word_count", 0) or 0,
+            "transition_repeats": ctx.get("transition_repeats", 0) or 0,
+        }
+        plot_extra = {
+            "facts": ctx.get("facts", []),
+            "events": ctx.get("events", []),
+            "char_actions": ctx.get("char_actions", []),
+            "identity_changes": ctx.get("identity_changes", []),
+            "movements": ctx.get("movements", []),
+        }
+        return {
+            "reader_context": reader_context,
+            "genre_contract": {"required_scenes": [], "_note": "单章审计无完整类型契约"},
+            "plot_extra": plot_extra,
+        }
+
     def check_cross_chapter_consistency(self, project_id: str, current_text: str) -> list[dict]:
         """#12: 当前章与历史章的一致性检测
 
-        检测三类矛盾：
+        检测四类矛盾：
         1. 数字事实矛盾——"陈默今年30岁" vs 历史章 "陈默今年40岁"
         2. 信念冲突——当前章断言与角色已有信念相反（无转变解释）
         3. 已亡角色复活/消失角色复现
+        4. CSN 数值矛盾——中文数词归一化后的跨章数值比对（P0-3 新增；
+           覆盖正则 EntityExtractor 抓不到的"修了十一年→二十一年"）
 
         Returns: [{type, severity, detail, current_chapter, conflict_chapter}]
         """
@@ -934,6 +977,14 @@ class Orchestrator:
                                 "conflict_chapter": belief.updated_at or None,
                             }
                         )
+
+        # 4) CSN 数值矛盾（P0-3）：中文数词归一化跨章比对——正则 EntityExtractor
+        #    抓不到"修了十一年→二十一年"，此扫描器补齐时间/年龄/楼层类数值事实。
+        from core.csn_consistency import find_cross_chapter_numeric_conflicts
+
+        history_texts = [(ch.number, ch.text) for ch in history]
+        csn_conflicts = find_cross_chapter_numeric_conflicts(current_text, history_texts)
+        conflicts.extend(csn_conflicts)
 
         return conflicts
 
