@@ -66,6 +66,19 @@ class TextSubmitRequest(BaseModel):
     text: str
 
 
+class AuditRequest(BaseModel):
+    """P0-2 (2026-09-07): /audit 默认 analysis-only。
+
+    commit=false（默认）= dry_run：只审计不写库、不推进章节号，
+    供"试算建议文本"场景安全使用（修复此前 audit 无 BLOCK 即静默 submit_chapter 的副作用）。
+    commit=true = 显式提交：无 BLOCK 时落库（旧行为，标 deprecated，建议改用 /submit-chapter）。
+    """
+
+    project_id: str
+    text: str
+    commit: bool = False
+
+
 class BeliefUpdateRequest(BaseModel):
     project_id: str
     character: str
@@ -1058,19 +1071,35 @@ async def apply_style_profile(
 
 @app.post("/project/{project_id}/audit")
 async def api_audit(
-    project_id: str, req: TextSubmitRequest, orch: Orchestrator = Depends(get_orchestrator)
+    project_id: str, req: AuditRequest, orch: Orchestrator = Depends(get_orchestrator)
 ):
-    """W1: 章节审计——G1-G5 预检 + 提交链路 G6-G10 + 跨章 + 五大质量检测
+    """W1: 章节审计（P0-2, 2026-09-07）——默认 analysis-only（dry_run）。
 
-    ⚠️ 2026-09-07 审计修复：历史 docstring 曾宣称本端点跑「全量门禁」，实际只运行
-    pre_generation_check（G1-G5）并在无 BLOCK 时走 submit_chapter（G6-G10）。
-    全量文鉴审计见 MCP analyze_chapter / AuditPipeline.run_full（registry 单一真源）。
+    默认（commit=false）：只审计不落库——G1-G5 预检 + G6-G10 章后审计（临时实例）
+    + 跨章一致性预检 + 质量检测。项目状态与 DB 均不变，供"试算建议文本"场景安全使用。
+    commit=true：保留旧提交语义（无 BLOCK 即 submit_chapter 落库）——已 deprecated，
+    建议改用 POST /project/{id}/submit-chapter。
     门禁总数一律以 `wenjian.audit.gates.gate_registry_stats()` 为准，禁止手写数字。
     """
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
 
+    from core.quality import get_quality_inspector
+
+    quality = get_quality_inspector().run_all(req.text)
+
+    if not req.commit:
+        # ── dry_run：只审计，不落库 ──
+        try:
+            draft = orch.audit_draft(project_id, req.text)
+        except ValueError as e:
+            raise HTTPException(status_code=404, detail=str(e)) from e
+        draft["quality"] = quality
+        draft["quality_total"] = len(quality)
+        return draft
+
+    # ── commit=true：旧提交语义（deprecated） ──
     context = EntityExtractor.to_gate_context(req.text)
     gate_results = project.gates.pre_generation_check(
         req.text,
@@ -1085,10 +1114,6 @@ async def api_audit(
     has_block = any(r.level == GateLevel.BLOCK for r in gate_results)
     report = orch.submit_chapter(project_id, req.text) if not has_block else None
 
-    from core.quality import get_quality_inspector
-
-    quality = get_quality_inspector().run_all(req.text)
-
     return {
         "overall_score": report.overall_score
         if report
@@ -1097,6 +1122,9 @@ async def api_audit(
         "audit_results": [r.to_dict() for r in (report.results if report else [])],
         "quality": quality,
         "quality_total": len(quality),
+        "dry_run": False,
+        "submitted": bool(report),
+        "deprecated": "commit=true 已废弃，请改用 POST /project/{id}/submit-chapter",
     }
 
 

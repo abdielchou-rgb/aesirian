@@ -75,6 +75,20 @@ class TestE2E:
         )
         assert aud.status_code == 200
         assert "quality" in aud.json()
+        # P0-2: /audit 默认 dry_run，不落库、不推进章节号
+        assert aud.json().get("dry_run") is True
+        assert aud.json().get("submitted") is False
+
+        # 显式提交第 2 章（P0-2 后 /audit 不再隐式落库；提交走 /submit-chapter）
+        sub2 = client.post(
+            "/project/" + pid + "/submit-chapter",
+            json={
+                "project_id": pid,
+                "text": "第二章：沈夜走进档案室，灯光忽明忽暗。他听见门后有呼吸声。",
+            },
+        )
+        assert sub2.status_code == 200
+        assert sub2.json()["submitted"] is True
 
         # 5. 心智网格
         mg = client.get("/project/" + pid + "/mind-grid")

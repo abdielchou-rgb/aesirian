@@ -600,6 +600,82 @@ class Orchestrator:
             "blocked": has_block,
         }
 
+    @trace_span("orchestrator.audit_draft", attributes={"operation": "audit_draft"})
+    def audit_draft(self, project_id: str, text: str) -> dict:
+        """P0-2 (2026-09-07): analysis-only 章节审计（dry_run）。
+
+        修复历史副作用：`/audit` 无 BLOCK 时静默调用 submit_chapter 会落库、
+        推进章节号、触发 ToM/KG 更新——用户"试算一段建议文本"可能不知不觉写入章节。
+
+        本方法只审计、不落库：G1-G5 预检 + G6-G10 章后审计（在**临时** gates 实例上
+        跑，不污染 project.gates._current_chapter/_audit_history）+ 跨章一致性预检。
+        project 状态与 DB 均不变。
+
+        Returns:
+          {overall_score, gate_results, audit_results, cross_chapter, dry_run: True,
+           submitted: False}
+        """
+        project = self._get_or_load_project(project_id)
+        if not project:
+            raise ValueError(f"项目 {project_id} 不存在")
+
+        # ── G1-G5 预检（只读） ──
+        from core.entity_extractor import EntityExtractor
+
+        context = EntityExtractor.to_gate_context(text)
+        ctx = {
+            "facts": context["facts"],
+            "char_actions": context["char_actions"],
+            "identity_changes": context["identity_changes"],
+            "events": context["events"],
+            "movements": context["movements"],
+        }
+        gate_results = project.gates.pre_generation_check(text, context=ctx)
+        has_block = any(r.level == GateLevel.BLOCK for r in gate_results)
+
+        # ── G6-G10 章后审计：在临时 gates 上跑，避免污染真实实例 ──
+        # 真实 submit 的 post_chapter_audit 会推进 self._current_chapter 并 append
+        # audit_history；dry_run 必须零副作用。临时实例注入与 project 相同的
+        # kg/tom/reader 依赖（审计只读这些依赖），初始章节号对齐 project 当前章节。
+        open_threads_data = [
+            {"id": n.id, "description": n.name}
+            for n in project.kg.nodes.values()
+            if n.type == NodeType.EVENT and n.properties.get("is_open_thread")
+        ]
+        report_results: list[dict] = []
+        overall_score = 100.0
+        if not has_block:
+            temp_gates = ConsistencyGateSystem()
+            temp_gates.set_dependencies(
+                kg=project.kg, tom=project.tom, reader=project.reader
+            )
+            temp_gates._current_chapter = max(project.current_chapter, 0)
+            report = temp_gates.post_chapter_audit(
+                text,
+                plot_state={"open_threads": open_threads_data},
+                genre_contract={"required_scenes": []},
+                reader_context={"new_characters": 0, "new_locations": 0, "pov_switches": 0},
+                matrix_state={"recent_patterns": project.cooldown.usage_history},
+            )
+            report_results = [r.to_dict() for r in report.results]
+            overall_score = report.overall_score
+        else:
+            overall_score = max(
+                0, 100 - sum(20 if r.level == GateLevel.BLOCK else 10 for r in gate_results)
+            )
+
+        # ── 跨章一致性预检（只读，读历史章，不写库） ──
+        cross_chapter = self.check_cross_chapter_consistency(project_id, text)
+
+        return {
+            "overall_score": overall_score,
+            "gate_results": [r.to_dict() for r in gate_results],
+            "audit_results": report_results,
+            "cross_chapter": cross_chapter,
+            "dry_run": True,
+            "submitted": False,
+        }
+
     @trace_span("orchestrator.submit_chapter", attributes={"operation": "submit_chapter"})
     def submit_chapter(self, project_id: str, text: str) -> AuditReport:
         """提一章——全量审计 + 知识图谱提交 + 读者模型更新"""
