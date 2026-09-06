@@ -45,9 +45,10 @@ target-version = "py311"
 # - 移出 select：T20(print)/PTH(pathlib) —— 项目采用 print+os.path 既有风格，
 #   CONTRIBUTING 已说明；专项迁移列入后续技术债。
 # - ignore 追加：E501(长字符串/数据行不随 format 断行)、E402(顶层 sys.path+延迟导入为独立运行所需，
-#   遍布 core 入口/tools/mcp)、F403(registry 星号再导出)。
+#   遍布 core 入口/tools/mcp)、F403(registry 星号再导出)、UP017(datetime.UTC 需 3.11+，CI 矩阵含 3.10，
+#   保持 timezone.utc，compat_matrix_check 守护)。
 select = ["E", "F", "I", "UP", "B", "C4", "SIM", "ERA", "RET", "ARG", "FLY", "NPY", "PERF", "TRY", "TID", "LOG"]
-ignore = ["S101", "TRY003", "ARG001", "ARG002", "E501", "E402", "F403"]
+ignore = ["S101", "TRY003", "ARG001", "ARG002", "E501", "E402", "F403", "UP017"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = [

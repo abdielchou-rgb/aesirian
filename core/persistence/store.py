@@ -4,11 +4,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 
 def now_utc():
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 import json

@@ -2,11 +2,11 @@
 Æsirian SQLModel ORM models — SQLite persistence for narrative projects
 """
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 
 def now_utc():
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 from sqlalchemy import JSON, Column, Text

@@ -25,7 +25,7 @@ import argparse
 import json
 import sys
 from collections import Counter, OrderedDict
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -36,8 +36,8 @@ def parse_iso(ts: str):
         s = s[:-1] + "+00:00"
     dt = datetime.fromisoformat(s)
     if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=UTC)
-    return dt.astimezone(UTC)
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
 def is_proposal_edit(ev: dict) -> bool:
@@ -145,7 +145,7 @@ def main(argv=None):
         results.append(analyze_one(fp))
 
     payload = {
-        "generated_at": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "generated_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "per_trace": results,
         "summary": summarize(results),
     }

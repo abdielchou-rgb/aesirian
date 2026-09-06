@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 TEMPLATE_IDS = ("three_act", "hero_journey", "save_the_cat", "story_circle")
 
@@ -40,7 +40,7 @@ TEMPLATE_STRUCTURES = {
 
 
 def _now() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(timezone.utc)
 
 
 @dataclass
