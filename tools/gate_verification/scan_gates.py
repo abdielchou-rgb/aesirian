@@ -53,6 +53,11 @@ def scan_text(text: str, chapter_index: int = 0) -> list:
     ]
 
 
+def _active_hits(results: list) -> list:
+    """有效命中 = block/warn 失败（排除 info 降噪与 skipped）。"""
+    return [r for r in results if not r["passed"] and not r["skipped"] and r["severity"] in ("block", "warn")]
+
+
 def summary(results: list) -> dict:
     total = len(results)
     passed = sum(1 for r in results if r["passed"] and not r["skipped"])
@@ -60,6 +65,7 @@ def summary(results: list) -> dict:
     blocked = sum(
         1 for r in results if not r["passed"] and not r["skipped"] and r["severity"] == "block"
     )
+    # P3-11: info 级（装饰门禁降噪）不计入 warned——它不是缺陷特异信号
     warned = sum(
         1 for r in results if not r["passed"] and not r["skipped"] and r["severity"] == "warn"
     )
@@ -84,8 +90,8 @@ def main():
     base_summ = summary(baseline)
 
     # 2) 基线噪声门禁集合（干净文本亦命中 → 非缺陷特异）
-    base_hit_ids = {r["gate_id"] for r in baseline if not r["passed"] and not r["skipped"]}
-    base_hit_by_id = {r["gate_id"]: r for r in baseline if not r["passed"] and not r["skipped"]}
+    base_hit_ids = {r["gate_id"] for r in _active_hits(baseline)}
+    base_hit_by_id = {r["gate_id"]: r for r in _active_hits(baseline)}
 
     # 3) 逐样本扫描（净新增 = 样本命中 - 基线命中）
     scanned = []
@@ -93,7 +99,7 @@ def main():
     for i, s in enumerate(samples, 1):
         res = scan_text(s["text"], 0)
         summ = summary(res)
-        hit_gates = [r for r in res if not r["passed"] and not r["skipped"]]
+        hit_gates = _active_hits(res)
         delta = []
         for r in hit_gates:
             if r["gate_id"] in base_hit_ids:
@@ -159,7 +165,7 @@ def main():
         "baseline": {
             "text": BASELINE_TEXT[:40],
             "summary": base_summ,
-            "baseline_hits": [r for r in baseline if not r["passed"] and not r["skipped"]],
+            "baseline_hits": _active_hits(baseline),
         },
         "metrics": {
             "recall": round(recall, 4),

@@ -102,7 +102,7 @@ def configure_observability(
             _set_tags(
                 {
                     "service": service_name,
-                    "version": "0.2.0",
+                    "version": "0.2.1",
                 }
             )
 

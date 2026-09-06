@@ -63,6 +63,11 @@ A("")
 A(
     "167 门禁在当前接入方式下**能拦住的**是结构/节奏/对话层缺陷；**拦不住的**恰恰是 AI 最常犯、作者最痛的一致性矛盾（时间/身份/空间/事实/称谓）。"
 )
+A(
+    "> **2026-09-07 重跑说明（P3-11 降噪后）**：装饰门禁短章降 info、PLE-02/G3-01 上下文饥饿治理"
+    "为 SKIPPED——干净《洛阳星港》ch1 误拦截从 2 BLOCK → 0 BLOCK。一致性矛盾已由 P0-3 "
+    "`core/csn_consistency.py` 在 orchestrator 跨章路径闭环；本报告只扫单章 run_full，不含跨章 CSN，属接入形态边界。"
+)
 A("")
 A("| 指标 | 数值 | 红线/说明 |")
 A("|---|---|---|")
@@ -73,7 +78,7 @@ A(
     f"| **净命中率（去基线噪声）** | **{m['net_recall']:.0%}**（{m['net_hit_samples']}/{m['samples_total']}） | 样本产生干净文本没有的门禁信号 |"
 )
 A(
-    f"| 误报率 FP（干净文本 BLOCK） | {m['fp_blocks_on_clean']}/166 = {m['fp_blocks_on_clean'] / 166:.1%} | ≤5% ✓（但见 §4 上下文饥饿） |"
+    f"| 误报率 FP（干净文本 BLOCK） | {m['fp_blocks_on_clean']}/166 = {m['fp_blocks_on_clean'] / 166:.1%} | ≤5% ✓（P3-11 降噪后 0 误拦截） |"
 )
 A(f"| 零净命中样本 | {len(zero)}/32 | 这些错误类型当前完全无覆盖 |")
 A(
@@ -147,13 +152,13 @@ A("")
 A("| 门禁 | 现象 | 建议 |")
 A("|---|---|---|")
 A(
-    "| PLE-02 | 干净第 1 章被判「连续压抑 9 章」BLOCK；`gap_densities[-1] > 3` 时把单章 gap 信号数当作跨章压抑章数 | 无历史章上下文时 SKIP，或改由跨章情绪曲线驱动 |"
+    "| PLE-02 | 曾把单章 gap 信号数当作跨章压抑章数 → 干净 ch1 误 BLOCK | **已治理（P3-11）**：缺跨章情绪史即 SKIPPED |"
 )
 A(
-    "| G3-01 | 未提供 `first_conflict_position` 时默认 99999 → 几乎对所有纯文本 BLOCK（含干净文本） | 缺事件标注时 SKIP；接入 EntityExtractor/LLM 冲突锚点后再启用 |"
+    "| G3-01 | 曾因缺 `first_conflict_position` 默认 99999 → 纯文本误 BLOCK | **已治理（P3-11）**：缺冲突锚点即 SKIPPED |"
 )
 A("")
-A("这两项导致干净文本 FP=1.2%（≤5% 红线内），但属于「测量噪音」而非真实缺陷拦截，会污染 Recall。")
+A("治理后干净文本 FP=0/166（P3-11），两项均不再产生「测量噪音」。")
 A("")
 A("### 4.2 装饰性门禁候选（基线噪音高、净区分度低）")
 A("")
@@ -166,7 +171,9 @@ A(
 )
 A("")
 A(
-    "候选处理：并入「仅当章长 ≥2000 字或提供跨章字段时启用」，或降为 info 级。**（本报告只列名，不执行——M4/V1.2 再动）**"
+    "候选处理：并入「仅当章长 ≥2000 字或提供跨章字段时启用」，或降为 info 级。**已执行（P3-11）**："
+    "上述装饰门禁声明进 `pipeline.NOISE_GATES`——短章(<2000字)失败降为 INFO（记录不拉高报告状态），"
+    "长章/跨章保留完整 WARN 语义。"
 )
 A("")
 A("## 5. 问题三：哪些错误类型 167 门禁完全没覆盖？（→ 新增候选）")
@@ -188,12 +195,18 @@ A("| 章末平收 | S1-09 | 强悬念铺垫被平收 |")
 A("| 意象重复 | S2-04 | 同一章内同意象 3 次无新信息 |")
 A("")
 A(
-    "**根因**：一致性矛盾（SVT/IIT/DDT/CLM 等门禁）的入参依赖跨章事实/事件字段（`facts/events/identity_changes`），纯章节文本下 pipeline 未推导这些字段 → 门禁缺参即跳过/宽松通过；`EntityExtractor.to_gate_context` 已产出 `facts/identity_changes/movements` 但**未接回 AuditPipeline**。"
+    "**根因**：一致性矛盾（SVT/IIT/DDT/CLM 等门禁）的入参依赖跨章事实/事件字段，纯章节文本下 pipeline 未推导 → 门禁缺参即跳过/宽松通过。"
 )
 A("")
-A("**新增候选（对 V1.2 有价值，M4 立项）**：")
 A(
-    "1. 一致性桥接门禁：把 `EntityExtractor` 的 facts/identity_changes 注入 audit ctx，新增 `CSN-xx`（Character Setting Novelty）类对时间/空间/称谓做同段或跨章一致性校验；"
+    "**已落地（P0-3）**：`core/csn_consistency.py` 中文数词归一化 + 数值事实扫描 + 跨章数值矛盾比对，"
+    "经 `orchestrator.check_cross_chapter_consistency` 输出 `csn_numeric_contradiction`（BLOCK）——"
+    "覆盖时间/年龄类矛盾（S1-01/S1-11 型）。本报告单章 run_full 不含此路径。"
+)
+A("")
+A("**仍为新增候选（对 V1.2 有价值）**：")
+A(
+    "1. 同章内称谓漂移/空间/设定矛盾门禁（S1-03/S1-04/S3-08 型——CSN 现走跨章，同段漂移需文本内检测）；"
 )
 A("2. 重复信息门禁：n-gram/实体三元组同章去重检测（S1-05/S2-04）；")
 A(

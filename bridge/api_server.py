@@ -33,7 +33,7 @@ from core.orchestrator import Orchestrator
 from core.persistence.store import ProjectStore
 from core.pydantic_ai_engine import get_llm_engine
 
-app = FastAPI(title="Æsirian Core API", version="0.2.0")
+app = FastAPI(title="Æsirian Core API", version="0.2.1")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
 app.include_router(review_router)
 
@@ -575,7 +575,7 @@ def _annotate_methodology(
 async def health():
     return {
         "status": "healthy",
-        "version": "0.2.0",
+        "version": "0.2.1",
         "engines": {
             "tom": "ready",
             "kg": "ready",
