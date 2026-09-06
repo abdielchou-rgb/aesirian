@@ -308,20 +308,42 @@ class ProjectStore:
         goals: list | None = None,
         secrets: list | None = None,
     ) -> Character:
-        character = Character(
-            id=uuid.uuid4().hex[:12],
-            project_id=project_id,
-            name=name,
-            role=role,
-            traits_json=json.dumps(traits or {}, ensure_ascii=False),
-            beliefs_json=json.dumps(beliefs or {}, ensure_ascii=False),
-            goals_json=json.dumps(goals or [], ensure_ascii=False),
-            secrets_json=json.dumps(secrets or [], ensure_ascii=False),
-        )
+        # P2-9: (project_id, name) 幂等 upsert——同名角色在同一项目内唯一
+        # （DB 主键仍为 uuid id；ToM character_id=name）。重复创建同名角色
+        # 覆盖其 JSON 列，而非插入重复行；配合模型层复合唯一约束。
+        data = {
+            "traits_json": json.dumps(traits or {}, ensure_ascii=False),
+            "beliefs_json": json.dumps(beliefs or {}, ensure_ascii=False),
+            "goals_json": json.dumps(goals or [], ensure_ascii=False),
+            "secrets_json": json.dumps(secrets or [], ensure_ascii=False),
+        }
         with Session(self.engine) as session:
-            session.add(character)
-            session.commit()
-            session.refresh(character)
+            existing = session.exec(
+                select(Character).where(
+                    Character.project_id == project_id, Character.name == name  # type: ignore[arg-type]
+                )
+            ).first()
+            if existing is None:
+                character = Character(
+                    id=uuid.uuid4().hex[:12],
+                    project_id=project_id,
+                    name=name,
+                    role=role,
+                    **data,
+                )
+                session.add(character)
+                session.commit()
+                session.refresh(character)
+            else:
+                character = existing
+                character.role = role
+                character.traits_json = data["traits_json"]
+                character.beliefs_json = data["beliefs_json"]
+                character.goals_json = data["goals_json"]
+                character.secrets_json = data["secrets_json"]
+                session.add(character)
+                session.commit()
+                session.refresh(character)
         self.touch_project(project_id)
         return character
 

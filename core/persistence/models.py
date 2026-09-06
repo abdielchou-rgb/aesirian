@@ -64,6 +64,10 @@ class Chapter(SQLModel, table=True):
 
 class CharacterRecord(SQLModel, table=True):
     __tablename__ = "characters"
+    # P2-9 (2026-09-07): (project_id, name) 复合唯一——同名角色在同一项目内唯一，
+    # 与 store.add_character 幂等 upsert 及 ToM character_id=name 约定对齐，
+    # 消除"docstring 说 name 是 id / 实现用 uuid / schema 无约束"三方矛盾。
+    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_characters_project_name"),)
 
     id: str = Field(default=None, primary_key=True)
     project_id: str = Field(foreign_key="projects.id", index=True)

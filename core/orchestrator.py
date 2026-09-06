@@ -794,8 +794,11 @@ class Orchestrator:
     def _persist_character_state(self, project: ProjectState) -> int:
         """将运行时 ToM 角色信念/目标全量回写 DB。
 
-        角色在 characters 表中以角色名为 id（add_character(name, name) 约定），
-        重启后由 _rebuild_characters 从 beliefs_json/goals_json 还原 Belief/Goal。
+        P2-9 澄清（2026-09-07）：DB `characters` 表主键是 **uuid id**
+        （store.add_character 用 uuid4），**不是角色名**。ToM 引擎的
+        character_id 约定为角色名（add_character(name, name)），二者通过
+        name 关联：本方法按 name 反查 DB 记录回写 beliefs_json/goals_json；
+        重启后 _rebuild_characters 用 record.name 重建 ToM（character_id=name）。
         返回回写的角色数。
         """
         records = {r.name: r for r in self.store.get_characters(project.project_id)}
