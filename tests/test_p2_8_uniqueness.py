@@ -116,7 +116,6 @@ def test_cross_chapter_reads_persisted_summary_not_full_reextract():
     )
 
     orch = Orchestrator(store=_store())
-    proj = orch.get_project(pid)
     chapter = _store().get_chapters(pid)[0]
     view = orch._history_entity_view(chapter)
     assert view.get("characters") is not None  # 摘要视图结构完整

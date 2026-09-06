@@ -34,6 +34,42 @@
 
 ---
 
+## [0.2.1] - 2026-09-07 深度审计修复（P0-P3 十三项）
+
+> 依据：`docs/aesirian-audit-20260907.md` 深度审计。累计新增 **+55 测试**（109 → 164 passed），全量 ruff/mypy 绿。
+
+### P0 产品真实性
+
+- **门禁单一真源 registry**（P0-1）：`core/wenjian/audit/gates` 新增 `GATE_CATALOG`（含每门禁 params schema）、`GATE_TOTAL=167`、`gate_registry_stats()`；README/user-guide/API docstring/前端的历史手写数字（145+/166/167）全部对齐或改为 registry 派生——消除数字漂移，测试强制"文档数字==registry"。
+- **`/audit` 默认 analysis-only**（P0-2）：新增 `AuditRequest{commit:bool}`，默认 dry_run 不落库不推进章节号（修复"审建议文本静默写入章节"）；`commit=true` 保留旧提交语义并标 deprecated；`orchestrator.audit_draft()` 用临时 gates 实例隔离副作用。
+- **一致性桥 CSN**（P0-3）：新增 `core/csn_consistency.py`（中文数词归一化 + 数值事实扫描 + 跨章数值矛盾比对），修复"时间/年龄矛盾 0/12 检出"——"修了十一年→二十一年"、"三十岁→四十五岁"现在可 BLOCK；G6-G10 收到真实 reader_context（不再硬编码 0）。
+- **真实执行路径图**（P0-4）：`docs/audit-execution-paths.md` 厘清文鉴167 / G1-G5 / G6-G10 / 跨章 / 质量五套系统的输入输出与调用者。
+
+### P1 工程收敛
+
+- **死门禁治理**（P1-5）：23 道注册却无 dispatcher 分支的门禁（STC-01..22 + RVI-06）从"静默假 PASS"改为显式跨章 SKIPPED + schema 自动绑定（提供 style_baseline 时真跑）；`safe_eval` 尾部静默 `pass_result` 移除。
+- **退役旧 llm_engine / mcp_server**（P1-6）：生产调用方全部迁移到 `pydantic_ai_engine`（LLMEngineCompat 统一单例）；旧模块 import 即 DeprecationWarning；`LLMSuggestion` 提升为统一类型。
+- **测试离线固化**（P1-7）：conftest 顶层设 HF offline env；新增 `sample_ch1_text` fixture 消除对运行端点的依赖。
+
+### P2 数据与性能
+
+- **chapters 复合唯一 + 幂等 upsert**（P2-8）：`(project_id, number)` 唯一约束；重复提交同章号覆盖而非插入幽灵章节；提交时落盘实体摘要，跨章一致性增量比对（消除 O(n²) 全量重提取）。
+- **characters 唯一 + alembic 002 + 真实库迁移工具**（P2-9）：`(project_id, name)` 唯一约束 + `store.add_character` 幂等 upsert；`tools/migrate_p2_9.py` 交付（备份+幂等补索引，重复角色前置检查）——真实库 schema 由 create_all 生成，请显式运行该工具迁移，不自动改动。
+- **runtime cache 版本化失效**（P2-10）：`store.project_revision()` 轻量指纹 + `_get_or_load_project` 命中时校验——外部写入者改库后自动丢弃陈旧缓存重载。
+
+### P3 门禁科学 + 产品闭环
+
+- **门禁降噪 + 精度回归**（P3-11）：23 道装饰性门禁在短章（<2000字）失败降为 INFO（不拉高报告状态），长章保留完整语义；PLE-02/G3-01 上下文饥饿误 BLOCK 治理为 SKIPPED——干净《洛阳星港》ch1 从 2 BLOCK → **0 BLOCK**；新增 `test_gate_precision_regression.py` 作 CI 精度回归门禁。
+- **diff 决策遥测 + provenance 视图**（P3-12）：`apply_diff` 记录进程内决策日志；`four_cards_stats` MCP 工具暴露接受率/来源→去向分布；`four_cards.html` 新增"决策统计"面板与已裁决 provenance 列表（永不静默改写的可追溯层）。
+
+### 已知遗留
+
+- 真人作者 trace 回收（M3-3/6）仍是唯一硬阻塞；真人数据回收后跑 `tools/m4_analyze_traces.py` 重算覆盖 M4 报告。
+- `tools/migrate_p2_9.py` 未在本机 `aesirian.db` 执行（保守），请在备份后显式运行以启用唯一约束。
+- 门禁巨石（safe_eval 143 分支）已用死门禁检测 + schema 兜底治理，未做全量表驱动重写（P1-5 增量）。
+
+---
+
 ## [0.1.0] - 内部里程碑快照（公开开源前，未发布 tag）
 
 内部开发期里程碑的能力基线（以下均经 109 项 pytest 验证，未公开分发）：
