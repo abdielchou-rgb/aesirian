@@ -206,19 +206,36 @@ class ProjectStore:
         first_line = next((ln.strip() for ln in text.splitlines() if ln.strip()), "")
         title = first_line[:60] if first_line else f"第{number}章"
 
-        chapter = Chapter(
-            id=uuid.uuid4().hex[:12],
-            project_id=project_id,
-            number=number,
-            title=title,
-            text=text,
-            word_count=word_count,
-            audit_report_json=json.dumps(audit_report or {}, ensure_ascii=False),
-        )
+        chapter_data = {
+            "project_id": project_id,
+            "number": number,
+            "title": title,
+            "text": text,
+            "word_count": word_count,
+            "audit_report_json": json.dumps(audit_report or {}, ensure_ascii=False),
+        }
         with Session(self.engine) as session:
-            session.add(chapter)
-            session.commit()
-            session.refresh(chapter)
+            # P2-8: (project_id, number) 幂等 upsert——重复提交同章号时覆盖而非插入，
+            # 配合模型层复合唯一约束，杜绝幽灵章节/重复行。
+            existing = session.exec(
+                select(Chapter).where(
+                    Chapter.project_id == project_id, Chapter.number == number  # type: ignore[arg-type]
+                )
+            ).first()
+            if existing is None:
+                chapter = Chapter(id=uuid.uuid4().hex[:12], **chapter_data)
+                session.add(chapter)
+                session.commit()
+                session.refresh(chapter)
+            else:
+                chapter = existing
+                chapter.title = title
+                chapter.text = text
+                chapter.word_count = word_count
+                chapter.audit_report_json = chapter_data["audit_report_json"]
+                session.add(chapter)
+                session.commit()
+                session.refresh(chapter)
         self.touch_project(project_id)
         return chapter
 

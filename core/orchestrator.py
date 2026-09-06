@@ -765,6 +765,8 @@ class Orchestrator:
         # 持久化章节
         audit_report_data = report.to_dict()
         audit_report_data["cross_chapter"] = cross_chapter
+        # P2-8: 落盘本章实体摘要——供后续跨章一致性增量比对（消除 O(n²) 全量重提取）
+        audit_report_data["_entity_summary"] = self._chapter_entity_summary(text)
         self.store.add_chapter(
             project_id=project_id,
             number=chapter_num,
@@ -919,15 +921,16 @@ class Orchestrator:
         if not history:
             return conflicts
 
-        current = self._extract_entities(current_text)
+        current = self._chapter_entity_summary(current_text)
         chapter_num = len(chapters)
 
         # 1) 数字事实矛盾（subject+predicate 相同、值不同）
-        current_facts = {(f.subject, f.predicate): f.obj for f in current.facts}
+        # P2-8: 历史章实体视图优先读落盘摘要（_entity_summary），无则回退全量提取
+        current_facts = {(f["subject"], f["predicate"]): f["object"] for f in current["facts"]}
         if current_facts:
             for ch in history:
-                past = self._extract_entities(ch.text)
-                past_facts = {(f.subject, f.predicate): f.obj for f in past.facts}
+                past = self._history_entity_view(ch)
+                past_facts = {(f["subject"], f["predicate"]): f["object"] for f in past["facts"]}
                 for key, cur_val in current_facts.items():
                     if key in past_facts and past_facts[key] != cur_val:
                         conflicts.append(
@@ -942,10 +945,10 @@ class Orchestrator:
                         )
 
         # 2) 身份变化无解释（当前章 identity_changes 缺解释且角色曾出场）
-        for change in current.identity_changes:
+        for change in current["identity_changes"]:
             if not change.get("has_explanation"):
                 char_seen_before = any(
-                    change["character"] in self._extract_entities(ch.text).characters
+                    change["character"] in self._history_entity_view(ch)["characters"]
                     for ch in history
                 )
                 if char_seen_before:
@@ -993,6 +996,43 @@ class Orchestrator:
         if _TRANSFORMERS_NER_AVAILABLE and TransformersEntityExtractor:
             return TransformersEntityExtractor().extract(text)
         return RegexEntityExtractor.extract(text)
+
+    def _chapter_entity_summary(self, text: str) -> dict:
+        """P2-8: 抽取单章实体/事实的紧凑可序列化摘要（供跨章一致性增量比对）。
+
+        历史问题：check_cross_chapter_consistency 对每个历史章每次提交都全量
+        `_extract_entities(ch.text)`——O(章节数) 次全文本正则提取/提交 → 全书累计
+        O(n²)。修复：提交时把本章摘要落盘（audit_report_json["_entity_summary"]），
+        后续跨章检查只读已落盘摘要；仅对无摘要的历史章（老数据）回退全量提取。
+        """
+        result = self._extract_entities(text)
+        return {
+            "characters": list(result.characters),
+            "facts": [
+                {"subject": f.subject, "predicate": f.predicate, "object": f.obj}
+                for f in result.facts
+            ],
+            "identity_changes": list(result.identity_changes),
+            "event_names": [e.name for e in result.events if hasattr(e, "name")],
+        }
+
+    def _chapter_summary_of(self, chapter) -> dict | None:
+        """从章节记录读取已落盘实体摘要（无则 None，调用方回退全量提取）。"""
+        try:
+            if not getattr(chapter, "audit_report_json", ""):
+                return None
+            payload = json.loads(chapter.audit_report_json)
+            summary = payload.get("_entity_summary")
+            return summary if isinstance(summary, dict) else None
+        except (json.JSONDecodeError, AttributeError):
+            return None
+
+    def _history_entity_view(self, chapter) -> dict:
+        """获取历史章实体视图——优先落盘摘要，缺失回退全量提取。"""
+        summary = self._chapter_summary_of(chapter)
+        if summary is not None:
+            return summary
+        return self._chapter_entity_summary(chapter.text)
 
     # ═══════════════════════════════════════
     # 假设推演（#15）

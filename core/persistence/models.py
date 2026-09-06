@@ -9,7 +9,7 @@ def now_utc():
     return datetime.now(timezone.utc)
 
 
-from sqlalchemy import JSON, Column, Text
+from sqlalchemy import JSON, Column, Text, UniqueConstraint
 from sqlmodel import Field, Relationship, SQLModel
 
 
@@ -46,6 +46,9 @@ class Project(SQLModel, table=True):
 
 class Chapter(SQLModel, table=True):
     __tablename__ = "chapters"
+    # P2-8 (2026-09-07): (project_id, number) 复合唯一——同一项目内章节号必须唯一，
+    # 防止重复提交/并发产生幽灵章节；配合 store.add_chapter 幂等 upsert。
+    __table_args__ = (UniqueConstraint("project_id", "number", name="uq_chapters_project_number"),)
 
     id: str = Field(default=None, primary_key=True)
     project_id: str = Field(foreign_key="projects.id", index=True)
