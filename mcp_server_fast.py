@@ -95,9 +95,11 @@ def _get_orchestrator():
 @mcp.tool()
 async def analyze_chapter(input: AnalyzeChapterInput) -> dict:
     """
-    Run 167-gate 文鉴 audit on chapter text (zero-API).
+    Run full 文鉴 audit on chapter text (zero-API, registry-driven gate set).
+    Gate count is derived from wenjian.audit.gates.GATE_CATALOG (not hardcoded).
     Returns pass/warn/block results with overall score.
     """
+    from core.wenjian.audit.gates import GATE_TOTAL
     from core.wenjian.audit.pipeline import AuditPipeline
 
     pipe = AuditPipeline()
@@ -107,6 +109,7 @@ async def analyze_chapter(input: AnalyzeChapterInput) -> dict:
     failed = [r for r in results if not r.get("passed", True)]
     return {
         "total_gates": len(results),
+        "registry_total": GATE_TOTAL,
         "failed": len(failed),
         "issues": failed[:20],
         "overall_score": getattr(report, "overall_score", None),

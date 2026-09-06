@@ -379,3 +379,66 @@ def list_gates(severity: str = None) -> list[dict]:
             }
         )
     return results
+
+
+# ════════════════════════════════════════════════════════════════════
+# P0-1 单一真源 registry（2026-09-07 审计修复）
+#
+# 历史问题：README「145+」/ user-guide「166」/ api docstring「166」/
+# attribution「167」/ mcp docstring「167」各自手写数字，且 145+22(STC)=167
+# 的关系散落在不同文档，无一处可从代码推导 → 数字漂移不可核验。
+#
+# 修复：此处是唯一真源。文档/API/MCP 引用门禁总量、阻断数、族分布、
+# 单门禁参数 schema 时，一律从 GATE_CATALOG / gate_registry_stats() 派生。
+# 一致性由 tests/test_gate_registry_consistency.py 强制（文档数字 == registry）。
+# ════════════════════════════════════════════════════════════════════
+
+import inspect as _inspect
+from collections import Counter as _Counter
+
+# 设计稿基线：wenjian-methodology-v2.md 的 V2 设计数（145）——演进为注册表
+# 后新增 STC 风格一致性 22 道，故 145 + 22 = GATE_TOTAL。保留常量以解释历史口径。
+DESIGN_BASELINE_V2 = 145
+STYLE_CONSISTENCY_INCREMENT = 22  # STC-01..STC-22
+
+
+def _gate_meta(cls) -> dict:
+    """从门禁类提取 registry 元数据（含 evaluate 参数 schema，供 dispatcher/文档使用）。"""
+    g = cls()  # type: ignore[abstract]
+    sig = _inspect.signature(g.evaluate)
+    params = [p for p in sig.parameters if p != "self"]
+    return {
+        "gate_id": g.gate_id,
+        "name": g.name,
+        "description": g.description,
+        "severity": g.severity.value,
+        "params": params,
+    }
+
+
+# 权威目录：gid -> {gate_id, name, description, severity, params}
+GATE_CATALOG: dict[str, dict] = {gid: _gate_meta(cls) for gid, cls in ALL_GATES.items()}
+
+# 权威计数（文档/API 一律用这些常量，禁止手写数字）
+GATE_TOTAL = len(GATE_CATALOG)
+BLOCKING_TOTAL = sum(1 for m in GATE_CATALOG.values() if m["severity"] == "block")
+GATE_FAMILIES: dict[str, int] = dict(_Counter(gid.split("-")[0] for gid in GATE_CATALOG))
+# 有 BLOCK 严重度实例的族（供文档"阻断级门禁族"表述派生）
+GATE_TOTAL_STR = str(GATE_TOTAL)
+
+
+def gate_registry_stats() -> dict:
+    """registry 权威统计——README/API/MCP/前端展示门禁数字时统一调用。"""
+    return {
+        "total": GATE_TOTAL,
+        "blocking": BLOCKING_TOTAL,
+        "design_baseline_v2": DESIGN_BASELINE_V2,
+        "style_consistency_increment": STYLE_CONSISTENCY_INCREMENT,
+        "families": GATE_FAMILIES,
+        "by_severity": dict(_Counter(m["severity"] for m in GATE_CATALOG.values())),
+    }
+
+
+def registry_gate_ids() -> list[str]:
+    """registry 中全部 gate_id（有序）——供 dispatcher/测试比对 '死门禁'。"""
+    return list(GATE_CATALOG.keys())

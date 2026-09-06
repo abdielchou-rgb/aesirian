@@ -594,7 +594,7 @@ async function submitChapter() {
   busy = true;
   const btn = $('btn-submit');
   setBusy(btn, '分析中…');
-  $('submit-status').innerHTML = '<span class="spinner"></span> 分析中（含166道门禁）…';
+  $('submit-status').innerHTML = '<span class="spinner"></span> 分析中（门禁审计）…';
   $('submit-result').innerHTML = '';
   try {
     const d = await api('/project/' + PID + '/submit-chapter', { project_id: PID, text: text });
@@ -1303,7 +1303,7 @@ function showOnboarding() {
     '<div style="font-size:.84rem;line-height:2">' +
     '<p><b>①</b> 上方输入一句话想法，点「创建项目」</p>' +
     '<p><b>②</b> 写正文，按 <code>Ctrl+Enter</code> 让 AI 续写</p>' +
-    '<p><b>③</b> 点「提交章节」查看 166 道门禁审计</p>' +
+    '<p><b>③</b> 点「提交章节」查看门禁审计</p>' +
     '</div>' +
     '<div class="flex mt" style="justify-content:space-between;align-items:center">' +
     '<span style="font-size:.7rem;color:var(--text3)">高级功能藏在下方各面板中</span>' +

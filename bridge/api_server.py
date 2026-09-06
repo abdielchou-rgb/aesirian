@@ -1060,7 +1060,13 @@ async def apply_style_profile(
 async def api_audit(
     project_id: str, req: TextSubmitRequest, orch: Orchestrator = Depends(get_orchestrator)
 ):
-    """W1: 章节审计——166门禁 + 跨章 + 五大质量检测"""
+    """W1: 章节审计——G1-G5 预检 + 提交链路 G6-G10 + 跨章 + 五大质量检测
+
+    ⚠️ 2026-09-07 审计修复：历史 docstring 曾宣称本端点跑「全量门禁」，实际只运行
+    pre_generation_check（G1-G5）并在无 BLOCK 时走 submit_chapter（G6-G10）。
+    全量文鉴审计见 MCP analyze_chapter / AuditPipeline.run_full（registry 单一真源）。
+    门禁总数一律以 `wenjian.audit.gates.gate_registry_stats()` 为准，禁止手写数字。
+    """
     project = orch.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
