@@ -5,10 +5,15 @@ Run: python -X utf8 -m pytest tests/test_mcp_server.py -q
 
 import json
 import sys
+import warnings
 
 sys.path.insert(0, ".")
 
-from mcp_server import dispatch_request
+# P1-6: 本测试覆盖旧版 stdio JSON-RPC 分发层（历史兼容），模块已标废弃。
+# import 会触发 DeprecationWarning——此处显式接受（测试对象就是旧层）。
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", DeprecationWarning)
+    from mcp_server import dispatch_request
 
 
 def rpc(msg: dict) -> dict | None:

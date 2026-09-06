@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 
 from core.context.assembler import ContextAssembler
 from core.context.engine import ContextConfig
-from core.llm_engine import get_llm_engine
+from core.pydantic_ai_engine import get_llm_engine
 from core.quality.ai_tell_detector import AITellDetector
 
 

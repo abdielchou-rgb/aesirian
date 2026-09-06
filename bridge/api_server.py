@@ -29,9 +29,9 @@ from core.export.exporter import (
     export_project_epub,
     export_project_markdown,
 )
-from core.llm_engine import get_llm_engine
 from core.orchestrator import Orchestrator
 from core.persistence.store import ProjectStore
+from core.pydantic_ai_engine import get_llm_engine
 
 app = FastAPI(title="Æsirian Core API", version="0.2.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])

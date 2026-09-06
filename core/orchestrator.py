@@ -1122,7 +1122,7 @@ class Orchestrator:
 
             llm_used = False
             try:
-                from core.llm_engine import get_llm_engine
+                from core.pydantic_ai_engine import get_llm_engine
 
                 llm_used = bool(get_llm_engine().available())
             except Exception:
@@ -1152,7 +1152,7 @@ class Orchestrator:
         if len(fragments) < 2:
             raise ValueError("至少需要 2 个碎片画面")
 
-        from core.llm_engine import get_llm_engine
+        from core.pydantic_ai_engine import get_llm_engine
 
         llm = get_llm_engine()
 

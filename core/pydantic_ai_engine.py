@@ -47,6 +47,27 @@ class ChapterDraft(BaseModel):
     characters_appeared: list[str] = Field(default_factory=list, description="出场角色")
 
 
+class LLMSuggestion(BaseModel):
+    """LLM 生成的续写建议（P1-6：自旧 core/llm_engine 提升为统一类型）。
+
+    统一生成入口 core.pydantic_ai_engine 直接产出本类型；旧模块 core.llm_engine
+    已退役（import 即 DeprecationWarning），不再作为本类型的来源。
+    """
+
+    type: str = "llm"  # tension / character / reader / pattern / llm
+    text: str = ""  # 续写开头（max 40字）
+    rationale: str = ""  # 为什么（max 20字）
+    source: str = ""  # 方法论来源
+
+    def to_dict(self) -> dict:
+        return {
+            "type": self.type,
+            "text": self.text[:40],
+            "rationale": self.rationale[:20],
+            "source": self.source[:30] if self.source else "LLM",
+        }
+
+
 class SceneConstraints(BaseModel):
     """场景约束输出"""
 
@@ -609,9 +630,6 @@ class LLMEngineCompat:
     def generate_suggestions(self, context: dict) -> list:
         """兼容旧接口：返回 LLMSuggestion 列表"""
         suggestions = self._engine.generate_suggestions(context)
-        # 转换为旧格式
-        from core.llm_engine import LLMSuggestion
-
         return [
             LLMSuggestion(
                 type=s["type"],

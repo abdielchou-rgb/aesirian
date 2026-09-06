@@ -10,7 +10,7 @@ import json
 import re
 from dataclasses import asdict, dataclass
 
-from core.llm_engine import get_llm_engine
+from core.pydantic_ai_engine import get_llm_engine
 
 VOICE_INTERVIEW_QUESTIONS = [
     "你最喜欢的作家是谁？为什么？",

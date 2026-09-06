@@ -5,12 +5,12 @@ from __future__ import annotations
 import json
 import re
 
-from core.llm_engine import get_llm_engine
 from core.planning.outline import (
     TEMPLATE_STRUCTURES,
     OutlineNode,
     StoryOutline,
 )
+from core.pydantic_ai_engine import get_llm_engine
 
 _POSITIVE_KWS = ("胜利", "发现", "成长", "获得", "成功", "和解", "突破")
 _NEGATIVE_KWS = ("失败", "损失", "打击", "失去", "背叛", "死亡", "崩溃", "误会")

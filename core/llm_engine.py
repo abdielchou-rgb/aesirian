@@ -20,6 +20,18 @@ LLM 引擎 — 接入 DeepSeek/Claude 生成续写建议和场景文本
 
 from __future__ import annotations
 
+import warnings
+
+# P1-6 (2026-09-07): 本模块已退役为兼容壳。所有生产调用方已迁移到
+# core.pydantic_ai_engine.get_llm_engine()（LLMEngineCompat）。import 本模块即告警，
+# 新增代码禁止 import；移除计划见文件头注释。
+warnings.warn(
+    "core.llm_engine 已废弃（P1-6）——请改从 core.pydantic_ai_engine import get_llm_engine / LLMSuggestion。"
+    "本模块仅保留 LLMEngine 旧实现与类型定义供历史引用，计划 V1.2 移除。",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import os
 import re
@@ -404,9 +416,13 @@ class LLMEngine:
 
 # 全局单例
 def get_llm_engine() -> LLMEngine:
-    """DEPRECATED（M1-4）兼容门面：保留仅供既有调用方使用，不新增消费方。
+    """DEPRECATED（M1-4 / P1-6）兼容门面：保留仅供既有调用方使用，不新增消费方。
 
-    统一生成入口为 core.pydantic_ai_engine.get_llm_engine()（Pydantic AI 门面，
-    返回 LLMEngineCompat 同构兼容层）。本函数计划于 V1.2 移除。
+    P1-6 (2026-09-07)：生产调用方已全部迁移，本函数现委托到统一生成入口
+    core.pydantic_ai_engine.get_llm_engine()（返回 LLMEngineCompat 同构兼容层），
+    不再实例化旧的 requests 直连 LLMEngine——消除"第二套生成路径"。
+    本函数计划于 V1.2 移除。
     """
-    return LLMEngine()
+    from core.pydantic_ai_engine import get_llm_engine as _get_compat
+
+    return _get_compat()  # type: ignore[return-value]  # Compat 与 LLMEngine 同构

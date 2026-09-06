@@ -31,6 +31,18 @@ Usage（本文件已 DEPRECATED，请使用统一入口 mcp_server_fast.py）:
 
 from __future__ import annotations
 
+import warnings
+
+# P1-6 (2026-09-07): 旧版 stdio-only MCP server 退役为兼容壳。生产/新代码一律走
+# mcp_server_fast.py（FastMCP）。import 本模块即告警；本文件仅保留给
+# tests/test_mcp_server.py 的 JSON-RPC 分发层测试与历史 `claude mcp add` 配置。
+warnings.warn(
+    "mcp_server.py 已废弃（P1-6）——请使用统一入口 mcp_server_fast.py "
+    "（FastMCP：stdio / SSE / HTTP 多传输，10 工具）。本文件计划 V1.2 移除。",
+    DeprecationWarning,
+    stacklevel=2,
+)
+
 import json
 import os
 import sys
