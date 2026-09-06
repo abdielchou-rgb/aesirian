@@ -1,0 +1,8 @@
+{
+  "name": "passive-voice-detector",
+  "version": "1.0.0",
+  "type": "gate",
+  "entry_point": "gate:PassiveVoiceGate",
+  "permissions": ["text_read"],
+  "description": "检测中文被动语态滥用（被/受/遭）"
+}

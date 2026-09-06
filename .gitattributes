@@ -1,0 +1,35 @@
+# Æsirian .gitattributes — 行尾归一化（0.2.0 公开仓）
+# 仓库文本统一 LF（与现有工作树一致）；Windows 原生脚本 (.bat/.ps1) 用 CRLF。
+* text=auto
+
+*.py  text eol=lf
+*.ts  text eol=lf
+*.tsx text eol=lf
+*.js  text eol=lf
+*.mjs text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.json text eol=lf
+*.md  text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
+*.txt text eol=lf
+*.ini text eol=lf
+*.cfg text eol=lf
+*.sh  text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+*.ico binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.woff binary
+*.woff2 binary
+*.eot binary
+*.ttf binary

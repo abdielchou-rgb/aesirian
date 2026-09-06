@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Æsirian · 四卡双向联动审查页</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--deep:#0D0D14;--surface:#16161F;--elevated:#1E1E2C;--accent:#C4953C;--accent-light:#E0B860;--accent-dim:#8A7530;--teal:#4B8B8B;--ok:#4FA36B;--bad:#B4574F;--text:#E6DDD0;--text2:#948C7A;--text3:#6B6355;--border:#2A2A3A;--radius:12px}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Inter',sans-serif;background:var(--deep);color:var(--text);min-height:100vh;line-height:1.6;-webkit-font-smoothing:antialiased;padding:24px}
+.wrap{max-width:1200px;margin:0 auto}
+h1{font-family:'Playfair Display',serif;font-weight:600;font-size:1.4rem;background:linear-gradient(135deg,var(--accent-light),var(--accent));-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:.5px}
+h2{font-family:'Playfair Display',serif;font-weight:500;font-size:1rem;color:var(--text2);margin-bottom:10px;letter-spacing:1px}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:18px;flex-wrap:wrap}
+.conn{display:flex;align-items:center;gap:8px;font-size:.72rem;color:var(--text3)}
+.conn .dot{width:8px;height:8px;border-radius:50%;background:var(--text3)}
+.conn .dot.ok{background:var(--ok)}.conn .dot.bad{background:var(--bad)}
+input[type=text],textarea{width:100%;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);padding:10px 12px;font-family:'Inter',sans-serif;font-size:.85rem;line-height:1.7;outline:none;resize:vertical}
+input[type=text]:focus,textarea:focus{border-color:var(--accent-dim)}
+textarea{min-height:180px}
+button{font-family:'Inter',sans-serif;cursor:pointer;border-radius:8px;border:none;padding:8px 14px;font-size:.8rem;font-weight:600;background:var(--surface);color:var(--text2);border:1px solid var(--border);transition:all .15s}
+button:hover{border-color:var(--accent-dim);color:var(--text)}
+button.primary{background:var(--accent);color:var(--deep)}
+button.primary:hover{background:var(--accent-light)}
+button:disabled{opacity:.4;cursor:not-allowed}
+.btnbar{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px;margin-top:18px}
+.col-4{grid-column:span 4}.col-6{grid-column:span 6}.col-12{grid-column:span 12}
+@media(max-width:900px){.col-4,.col-6{grid-column:span 12}}
+.section{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+.section .head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.badge{font-size:.62rem;padding:2px 8px;border-radius:10px;border:1px solid var(--accent-dim);color:var(--accent)}
+.badge.anchor{border-color:var(--accent);background:rgba(196,149,60,.08)}
+.badge.stale{border-color:var(--bad);color:var(--bad);background:rgba(180,87,79,.08)}
+.badge.clean{border-color:var(--ok);color:var(--ok);background:rgba(79,163,107,.08)}
+.field{margin-top:10px}
+.field label{display:block;font-size:.66rem;color:var(--text3);margin-bottom:4px;letter-spacing:.6px;text-transform:uppercase}
+.field textarea{min-height:56px;font-size:.8rem;padding:8px 10px}
+.field input{font-size:.8rem;padding:8px 10px}
+.beat{margin-top:8px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--elevated)}
+.beat .brow{display:flex;justify-content:space-between;gap:8px;font-size:.66rem;color:var(--text3);margin-bottom:4px}
+.beat .turn{font-weight:600}
+.turn.up{color:var(--teal)}.turn.down{color:var(--bad)}
+.beat textarea{font-size:.78rem;min-height:44px}
+.chap{margin-top:6px;display:flex;gap:8px;align-items:flex-start;font-size:.78rem;color:var(--text2)}
+.chap .idx{color:var(--accent-dim);min-width:22px;text-align:right;font-weight:600}
+.chap .sum{flex:1;background:transparent;border:none;color:var(--text);font-size:.78rem;padding:0;line-height:1.5}
+.muted{font-size:.72rem;color:var(--text3)}
+.score-line{margin-top:10px;display:flex;align-items:center;gap:10px}
+.score-val{font-family:'Playfair Display',serif;font-size:1.6rem;color:var(--accent-light)}
+#curve{width:100%;height:90px;margin-top:6px}
+.diff{border-left:3px solid var(--accent);background:var(--elevated);border-radius:0 8px 8px 0;margin-top:8px;padding:8px 10px;font-size:.76rem}
+.diff .why{color:var(--text3);font-size:.68rem;margin:3px 0}
+.diff.accepted{border-left-color:var(--ok);opacity:.6}
+.diff.rejected{border-left-color:var(--bad);opacity:.45}
+.diff .acts{display:flex;gap:6px;margin-top:6px}
+.diff .acts button{padding:3px 10px;font-size:.68rem}
+.hint{font-size:.7rem;color:var(--text3);margin-top:6px;line-height:1.5}
+.pending-pill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:.62rem;background:rgba(196,149,60,.12);color:var(--accent-light)}
+.spin{display:inline-block;animation:rot 1s linear infinite}
+@keyframes rot{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>Æsirian · 四卡双向联动审查页</h1>
+    <div class="conn"><span class="dot" id="connDot"></span><span id="connText">未连接</span></div>
+  </div>
+
+  <div class="section col-12">
+    <div class="head"><h2 style="margin:0">试样故事 → 正向推导</h2><span class="badge anchor">阶段 A</span></div>
+    <textarea id="sampleIn" placeholder="粘贴 500 字以上试样故事（want/lie 碰撞场景）…">当铺学徒沈砚在雨夜发现账本夹层里有一张泛黄的当票，当的是一把带血的短刀，当主签名是他失踪七年的父亲。他想要夺回家族当铺，那是父亲被诬陷前留给他的唯一念想。那年冬天父亲被至亲当众押走，他七岁，站在人群外喊不出声。从此他相信，对人交心等于死于背叛，夜里他总把短刀压在枕头下。如今他找到那把刀，刀柄刻着舅舅的名字。他握着刀，站在舅舅面前，忽然想起自己答应过要守护这家当铺。他把刀递了过去，说，我还你，但你欠我一句实话。舅舅没有接刀，却跪了下来。窗外雨声渐小，沈砚第一次觉得胸口那道旧伤，好像没那么疼了。</textarea>
+    <div class="btnbar">
+      <button class="primary" id="btnDerive">推导四卡</button>
+      <button id="btnDemo" title="加载《洛阳星港》预置演示：2 角色四卡 + 3 条联动提案样例">加载演示 · 洛阳星港</button>
+      <input type="text" id="mcpUrl" value="http://127.0.0.1:8765/mcp" placeholder="MCP HTTP 端点" style="max-width:320px">
+      <button id="btnPing">测试连接</button>
+      <button id="btnTrace" title="把本页埋点日志打到 console">查看埋点(<span id="traceCnt">0</span>)</button>
+    </div>
+    <div class="hint">前置：本机已启动 <code>python mcp_server_fast.py --transport http</code>。锚级变更将触发其余卡联动提案，接受/拒绝后才落地（永不静默改写）。演示快照含 3 条待批准样例，直接点接受/拒绝即可体验提案制。</div>
+  </div>
+
+  <div class="grid" id="cards" style="display:none">
+    <div class="section col-4">
+      <div class="head"><h2 style="margin:0">人物小传</h2><span class="badge anchor" id="bioState">锚</span></div>
+      <div id="bioBox"></div>
+      <div class="btnbar"><button id="btnPropBio" disabled>编辑后提案联动</button></div>
+    </div>
+    <div class="section col-4">
+      <div class="head"><h2 style="margin:0">框架张力轨迹</h2><span class="badge" id="fwState">–</span></div>
+      <div id="fwBox"></div>
+      <div class="btnbar"><button id="btnPropFw" disabled>编辑后提案联动</button></div>
+    </div>
+    <div class="section col-4">
+      <div class="head"><h2 style="margin:0">章节翻转快照</h2><span class="badge" id="chState">–</span></div>
+      <div id="chBox"></div>
+      <div class="btnbar"><button id="btnPropCh" disabled>编辑后提案联动</button></div>
+    </div>
+    <div class="section col-12">
+      <div class="head"><h2 style="margin:0">情感曲线 · 框架计划 vs 试样实际</h2>
+        <span class="badge clean" id="sampleState">pilot</span></div>
+      <svg id="curve" viewBox="0 0 600 90" preserveAspectRatio="none"></svg>
+      <div class="score-line"><span class="score-val" id="scoreVal">0</span><span class="muted">/100 · reader_model 沉浸度</span></div>
+      <div class="btnbar"><button id="btnPropSample" disabled>编辑试样后反向提案</button></div>
+      <div class="muted" id="diffHint" style="margin-top:8px"></div>
+      <div id="diffBox"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* MCP Streamable HTTP client（最小实现，含 session 保持） */
+let mcpEndpoint = "http://127.0.0.1:8765/mcp";
+let mcpSession = null;
+async function rpc(method, params, withSession) {
+  const body = { jsonrpc: "2.0", id: Math.floor(Math.random()*1e6), method, params };
+  const headers = { "Content-Type": "application/json", "Accept": "application/json, text/event-stream" };
+  if (withSession && mcpSession) headers["mcp-session-id"] = mcpSession;
+  const resp = await fetch(mcpEndpoint, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (resp.headers && resp.headers.get("mcp-session-id")) mcpSession = resp.headers.get("mcp-session-id");
+  if (!resp.ok) throw new Error("HTTP " + resp.status);
+  const raw = await resp.text();
+  let payload = null;
+  for (const line of raw.split(/\r?\n/)) {
+    const m = line.match(/^data:\s*(.+)$/);
+    if (m) { try { payload = JSON.parse(m[1]); } catch (e) {} }
+  }
+  if (!payload && raw.trim()) { try { payload = JSON.parse(raw.trim()); } catch (e) {} }
+  if (!payload) throw new Error("empty response");
+  if (payload.error) {
+    const err = new Error(payload.error.message || JSON.stringify(payload.error));
+    err.code = payload.error.code;
+    throw err;
+  }
+  return payload.result || {};
+}
+async function ensureSession() {
+  if (mcpSession) return;
+  await rpc("initialize", { protocolVersion: "2024-11-05", capabilities: {}, clientInfo: { name: "ui", version: "1" } }, false);
+}
+
+const $ = (id) => document.getElementById(id);
+let project = null;
+
+/* M3-5 埋点：callTool 计时 + diff 决策 + transportation 日志（localStorage） */
+const TRACE_KEY = "aesirian_fc_trace";
+function trace(op, detail) {
+  try {
+    const arr = JSON.parse(localStorage.getItem(TRACE_KEY) || "[]");
+    arr.push({ op, ts: new Date().toISOString(), detail: detail || {} });
+    if (arr.length > 500) arr.splice(0, arr.length - 500);
+    localStorage.setItem(TRACE_KEY, JSON.stringify(arr));
+    const el = $("traceCnt"); if (el) el.textContent = arr.length;
+  } catch (e) { /* storage unavailable: skip silently */ }
+}
+async function callTool(name, args) {
+  const t0 = performance.now();
+  try {
+    await ensureSession();
+    let r = await rpc("tools/call", { name, arguments: { input: args } }, true);
+    let content = (r.content || [])[0];
+    if (!content || !content.text) {
+      // 会话被服务端回收（400 Missing session）→ 重建会话重试一次
+      mcpSession = null;
+      await ensureSession();
+      r = await rpc("tools/call", { name, arguments: { input: args } }, true);
+      content = (r.content || [])[0];
+      if (!content || !content.text) throw new Error("no tool content");
+      trace(name, { ok: true, retried: true, ms: Math.round(performance.now() - t0), args: sanitize(args) });
+      return JSON.parse(content.text);
+    }
+    trace(name, { ok: true, ms: Math.round(performance.now() - t0), args: sanitize(args) });
+    return JSON.parse(content.text);
+  } catch (e) {
+    trace(name, { ok: false, ms: Math.round(performance.now() - t0), error: String(e.message || e) });
+    throw e;
+  }
+}
+function sanitize(o) {
+  if (!o || typeof o !== "object") return {};
+  const out = {};
+  if (o.project) out.cards = Object.keys(o.project).filter(k => k !== "sample");
+  if (o.edit) out.edit = { card: o.edit.card, field: o.edit.field };
+  if (o.decisions && o.decisions.length) out.decisions = o.decisions;
+  if (typeof o.text === "string") out.chars = o.text.length;
+  return out;
+}
+function logTransportation(p) {
+  const s = (p.sample || {}).transportation_score;
+  if (typeof s === "number") trace("transportation", { score: s, chars: ((p.sample||{}).text||"").length });
+}
+
+/* 渲染 */
+function esc(s){return (s ?? "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function fieldHtml(id, label, rows) {
+  return `<div class="field"><label>${label}</label><textarea id="${id}" rows="${rows||2}"></textarea></div>`;
+}
+function render() {
+  if (!project) return;
+  const bio = project.biographies[0];
+  $("bioBox").innerHTML =
+    fieldHtml("f_name","name") +
+    fieldHtml("f_want","want 欲望") + fieldHtml("f_wound","wound 创伤") +
+    fieldHtml("f_lie","lie 错误信念") + fieldHtml("f_change","change 转变");
+  const fmap = {f_name:"name",f_want:"want",f_wound:"wound",f_lie:"lie",f_change:"change"};
+  if (bio) {
+    $("f_name").value = bio.name || ""; $("f_want").value = bio.want || "";
+    $("f_wound").value = bio.wound || ""; $("f_lie").value = bio.lie || "";
+    $("f_change").value = bio.change || "";
+  }
+  Object.keys(fmap).forEach(k => $(k).onchange = () => { $("btnPropBio").disabled = false; });
+  $("fwBox").innerHTML = (project.framework || []).map((b,i)=>`
+    <div class="beat"><div class="brow"><span>#${b.index} ${esc(b.tension_source)}</span>
+      <span class="turn ${(b.value_turn||"").includes("正→负")?"down":"up"}">${esc(b.value_turn)}</span></div>
+      <textarea id="fw_${i}">${esc(b.goal)}</textarea></div>`).join("") || `<div class="muted">无框架 beats</div>`;
+  (project.framework || []).forEach((b,i)=>$("fw_"+i).onchange=()=>{$("btnPropFw").disabled=false;});
+  $("chBox").innerHTML = (project.chapters || []).map((c,i)=>`
+    <div class="chap"><span class="idx">${i+1}</span>
+      <textarea class="sum" id="ch_${i}" rows="1">${esc(c.summary)}</textarea>
+      <span class="muted">${c.causally_linked?"因果":"顺接"}</span></div>`).join("") || `<div class="muted">无章节</div>`;
+  (project.chapters || []).forEach((c,i)=>$("ch_"+i).onchange=()=>{$("btnPropCh").disabled=false;});
+  const s = project.sample || {};
+  $("sampleIn").value = s.text || "";
+  $("scoreVal").textContent = (s.transportation_score ?? 0).toFixed(1);
+  drawCurve();
+  updateStates();
+  renderDiffs(project.pending_diffs || []);
+}
+function updateStates() {
+  const pending = (project.pending_diffs || []).filter(d=>d.status==="pending").length;
+  const sum = project.card_summary ? null : null;
+  const anchored = !!(project.biographies || []).every(b=>b.want&&b.wound&&b.lie);
+  $("bioState").textContent = anchored ? "锚已定" : "锚未定";
+  $("bioState").className = "badge anchor" + (anchored ? "" : " stale");
+  $("diffHint").innerHTML = pending ? `<span class="pending-pill">${pending} 条联动提案待批准</span> 接受即落地到对应卡，拒绝记入 rejected（供模型学习）。` : "当前无待批准提案 —— 四卡一致。";
+  $("fwState").textContent = "框架 · " + (project.framework||[]).length + " beats";
+  $("chState").textContent = "章节 · " + (project.chapters||[]).length + " 拍";
+}
+function renderDiffs(diffs) {
+  $("diffBox").innerHTML = diffs.filter(d=>d.status==="pending").map(d=>`
+    <div class="diff" id="diff_${d.id}">
+      <b>${esc(d.target_card)} · ${esc(d.field)}</b>（因 ${esc(d.source_card||"-")} 变更）
+      <div class="why">${esc(d.rationale)}</div>
+      <div class="muted">→ ${esc(d.after)}</div>
+      <div class="acts">
+        <button class="primary" onclick="rule('${d.id}','accept')">接受</button>
+        <button onclick="rule('${d.id}','reject')">拒绝</button>
+      </div>
+    </div>`).join("") || `<div class="muted">无待批准 diff</div>`;
+}
+function drawCurve() {
+  const svg = $("curve"); svg.innerHTML = "";
+  const W=600,H=90,pad=6;
+  const beats = project.framework || [];
+  if (!beats.length) return;
+  const ns = "http://www.w3.org/2000/svg";
+  const pts=[];
+  let v=50;
+  beats.forEach((b,idx)=>{
+    const down = (b.value_turn||"").includes("正→负");
+    v = Math.max(8,Math.min(82, v + (down? 18 : -14)));
+    pts.push([pad + idx*(W-2*pad)/Math.max(1,beats.length-1), v]);
+  });
+  let d=""; pts.forEach((p,i)=>{d += (i? " L":"M") + p[0].toFixed(1)+","+p[1].toFixed(1);});
+  const path=document.createElementNS(ns,"path");
+  path.setAttribute("d",d); path.setAttribute("stroke","#C4953C"); path.setAttribute("stroke-width","2");
+  path.setAttribute("fill","none"); path.setAttribute("stroke-dasharray","0");
+  svg.appendChild(path);
+  const guide=document.createElementNS(ns,"line");
+  guide.setAttribute("x1",pad); guide.setAttribute("y1","50"); guide.setAttribute("x2",W-pad);
+  guide.setAttribute("y2","50"); guide.setAttribute("stroke","#2A2A3A"); guide.setAttribute("stroke-dasharray","3 4");
+  svg.appendChild(guide);
+}
+/* 收集一次编辑（四卡通用） */
+function collectEdit(card, fieldMap, getVal) {
+  const p = project;
+  let before="", after="", field="";
+  if (card === "biographies") {
+    const bio = p.biographies[0] || {};
+    for (const [fid, f] of Object.entries(fieldMap)) {
+      const el = $(fid); if (!el) continue;
+      const oldV = bio[f] || "";
+      if (el.value !== oldV) { field=f; before=oldV; after=el.value; break; }
+    }
+    return { card, index:0, field, before, after };
+  }
+  if (card === "framework") {
+    const arr = p.framework || [];
+    for (let i=0;i<arr.length;i++){ const el=$("fw_"+i); if(el && el.value!==(arr[i].goal||"")){ return {card,index:i,field:"goal",before:arr[i].goal,after:el.value};} }
+  }
+  if (card === "chapters") {
+    const arr = p.chapters || [];
+    for (let i=0;i<arr.length;i++){ const el=$("ch_"+i); if(el && el.value!==(arr[i].summary||"")){ return {card,index:i,field:"summary",before:arr[i].summary,after:el.value};} }
+  }
+  if (card === "sample") {
+    const el = $("sampleIn"); const oldV=(p.sample||{}).text||"";
+    if (el.value!==oldV) return {card,index:0,field:"text",before:oldV,after:el.value};
+  }
+  return null;
+}
+async function doEdit(card, btnId) {
+  const edit = collectEdit(card, {}, null);
+  if (!edit || !edit.field) { alert("未检测到字段变更"); return; }
+  const btn=$(btnId); btn.disabled=true; btn.textContent="提案中…";
+  try {
+    const r = await callTool("edit_four_cards", { project, edit, decisions: [] });
+    project = r.project;
+    render();
+    btn.textContent="已提案（可继续编辑再提案）"; btn.disabled=false;
+  } catch(e){ alert("提案失败: "+e.message); btn.disabled=false; btn.textContent="编辑后提案联动"; }
+}
+async function rule(id, action) {
+  const r = await callTool("edit_four_cards", { project,
+    edit: {card:"biographies",index:0,field:"none",before:"",after:""},
+    decisions: [{ id, action }] });
+  project = r.project; render();
+  trace("rule", { diff_id: id, action });
+}
+async function loadDemo() {
+  const btn=$("btnDemo"); btn.disabled=true; btn.textContent="加载中…";
+  try {
+    const r = await callTool("demo_luoyang", {});
+    project = r.project; render();
+    $("cards").style.display="grid";
+    logTransportation(project);
+    trace("demo_loaded", { bios: project.biographies.length, sample_diffs: r.sample_diffs });
+    btn.textContent="加载演示 · 洛阳星港"; btn.disabled=false;
+  } catch(e){ alert("演示加载失败: "+e.message); btn.disabled=false; btn.textContent="加载演示 · 洛阳星港"; }
+}
+async function derive() {
+  const text = $("sampleIn").value.trim();
+  if (text.length < 30) { alert("试样至少 30 字"); return; }
+  const btn=$("btnDerive"); btn.disabled=true; btn.innerHTML="推导中…";
+  try {
+    const r = await callTool("assemble_from_sample_story", { text });
+    project = r.project; render();
+    $("cards").style.display="grid";
+    logTransportation(project);
+    btn.innerHTML="推导四卡"; btn.disabled=false;
+  } catch(e){ alert("推导失败: "+e.message); btn.disabled=false; btn.innerHTML="推导四卡"; }
+}
+async function ping() {
+  mcpEndpoint = $("mcpUrl").value.trim() || mcpEndpoint;
+  const dot=$("connDot"), tx=$("connText");
+  dot.className="dot"; tx.textContent="测试中…";
+  try { await rpc("initialize",{protocolVersion:"2024-11-05",capabilities:{},clientInfo:{name:"ui",version:"1"}});
+    dot.className="dot ok"; tx.textContent="已连接"; }
+  catch(e){ dot.className="dot bad"; tx.textContent="连接失败: "+e.message; }
+}
+$("btnDerive").onclick=derive; $("btnPing").onclick=ping;
+$("btnDemo").onclick=loadDemo;
+$("btnTrace").onclick=()=>{
+  try { const arr=JSON.parse(localStorage.getItem(TRACE_KEY)||"[]"); console.table(arr); alert("已输出 "+arr.length+" 条埋点到 console (F12)"); }
+  catch(e){ alert("读取埋点失败: "+e.message); }
+};
+$("btnPropBio").onclick=()=>doEdit("biographies","btnPropBio");
+$("btnPropFw").onclick=()=>doEdit("framework","btnPropFw");
+$("btnPropCh").onclick=()=>doEdit("chapters","btnPropCh");
+$("btnPropSample").onclick=()=>doEdit("sample","btnPropSample");
+ping();
+</script>
+</body>
+</html>

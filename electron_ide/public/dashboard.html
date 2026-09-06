@@ -1,0 +1,1634 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Æsirian — 叙事协作实验室</title>
+<style>
+:root{
+  --bg:#f5f3ef;--surface:#fff;--card:#fff;
+  --border:#e2ddd5;--text:#1a1816;--text2:#6b6560;--text3:#9c9590;
+  --acc:#b8863a;--acc-hover:#a07330;--acc-light:#f0e4d0;
+  --red:#c44a4a;--green:#4a8a5a;--amber:#c49030;
+  --font:system-ui,'Noto Sans SC',sans-serif;
+  --mono:'SF Mono',monospace;--radius:10px;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;line-height:1.7}
+.container{max-width:1100px;margin:0 auto;padding:20px}
+.header{display:flex;align-items:center;gap:12px;padding:16px 0;border-bottom:2px solid var(--acc);margin-bottom:20px}
+.header .logo{font-size:1.4rem;font-weight:700;color:var(--acc);letter-spacing:-.5px}
+.header .status{font-size:.75rem;color:var(--text3);margin-left:auto;display:flex;align-items:center;gap:6px}
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px}
+.dot-g{background:var(--green)}.dot-r{background:var(--red)}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:12px;transition:box-shadow .2s}
+.card:hover{box-shadow:0 2px 12px rgba(0,0,0,.06)}
+.card h3{font-size:.8rem;font-weight:600;color:var(--text2);margin-bottom:10px}
+textarea,input[type=text]{width:100%;padding:10px 12px;border-radius:6px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:.85rem;outline:none;font-family:var(--font);margin-bottom:8px;transition:border-color .15s}
+textarea:focus,input:focus{border-color:var(--acc);box-shadow:0 0 0 2px rgba(184,134,58,.15)}
+textarea{min-height:60px;resize:vertical;line-height:1.7}
+textarea.chapter{min-height:240px;font-size:.9rem}
+.btn{padding:8px 16px;border-radius:6px;border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;font-size:.82rem;font-family:var(--font);transition:all .15s}
+.btn:hover{background:var(--acc-light);border-color:var(--acc);transform:translateY(-1px)}
+.btn:active{transform:translateY(0)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-p{background:var(--acc);color:#fff;border:1px solid var(--acc)}
+.btn-p:hover{background:var(--acc-hover)}
+.btn-sm{padding:4px 10px;font-size:.75rem}
+.flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.mb{margin-bottom:8px}
+.mt{margin-top:8px}
+.hide{display:none!important}
+pre{font-size:.72rem;overflow:auto;max-height:300px;padding:8px;background:var(--bg);border-radius:6px;font-family:var(--mono)}
+.tabs{display:flex;gap:4px;margin-bottom:0}
+.tab{padding:8px 16px;border-radius:6px 6px 0 0;border:1px solid var(--border);border-bottom:none;cursor:pointer;font-size:.78rem;background:var(--bg);transition:all .15s}
+.tab:hover{background:var(--acc-light)}
+.tab.active{background:var(--surface);font-weight:600;color:var(--acc);border-bottom:2px solid var(--acc)}
+.tab-content{background:var(--surface);border:1px solid var(--border);border-radius:0 6px 6px 6px;padding:16px;margin-bottom:12px;min-height:200px;transition:opacity .2s}
+.gate{font-size:.78rem;padding:6px 10px;border-radius:6px;margin-bottom:4px;border-left:3px solid;animation:slideIn .3s ease}
+@keyframes slideIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+.gate-pass{background:#f0f8f0;border-color:var(--green)}
+.gate-warn{background:#fdf8f0;border-color:var(--amber)}
+.gate-block{background:#fdf0f0;border-color:var(--red)}
+.mindgrid{width:100%;height:280px;background:var(--bg);border-radius:8px;border:1px solid var(--border);position:relative;overflow:hidden;cursor:grab}
+.mindgrid:active{cursor:grabbing}
+.mg-node{cursor:pointer}
+.mg-node circle{transition:stroke-width .15s}
+.mg-node:hover circle{stroke-width:2.5}
+.mg-node.selected circle{stroke-width:3.5px;stroke:var(--acc)}
+.belief-panel{border:1px solid var(--border);border-radius:8px;padding:12px;background:var(--surface);margin-top:10px}
+.belief-panel h4{font-size:.8rem;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.belief-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;font-size:.78rem;margin-bottom:4px;background:var(--bg)}
+.belief-item .val{font-weight:700;min-width:2.4em;color:var(--acc)}
+.belief-item .val.neg{color:var(--red)}
+.belief-item .conf{color:var(--text3);font-size:.7rem;margin-left:auto}
+.belief-item .btn{padding:2px 8px;font-size:.68rem}
+.belief-add{display:flex;gap:6px;margin-top:8px}
+.belief-add input{flex:1;min-width:0}
+.tension-chip{display:inline-block;padding:4px 10px;border-radius:12px;background:#fdf8f0;border:1px solid var(--amber);color:#8a6420;font-size:.72rem;margin:3px 4px 3px 0}
+.gate-cards{display:flex;gap:8px;flex-wrap:wrap}
+.gate-card{flex:1;min-width:100px;text-align:center;padding:10px 14px;border-radius:8px;border:1px solid var(--border);background:var(--surface)}
+.gate-card .num{font-size:1.5rem;font-weight:700;line-height:1.2}
+.gate-card .lbl{font-size:.7rem;color:var(--text3)}
+.gate-card.pass .num{color:var(--green)}
+.gate-card.warn .num{color:var(--amber)}
+.gate-card.block .num{color:var(--red)}
+.gate-row{font-size:.75rem;padding:5px 8px;border-radius:6px;margin-bottom:3px;border-left:3px solid;display:flex;gap:8px;align-items:baseline}
+.gate-row .gid{font-family:var(--mono);font-size:.68rem;color:var(--text3);min-width:64px}
+.gate-row .gname{min-width:130px}
+.gate-row .gmsg{flex:1;color:var(--text2)}
+.gate-filters{display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap}
+.gate-filters .btn.active{background:var(--acc);color:#fff;border-color:var(--acc)}
+.suggestion{padding:8px 10px;border-radius:6px;font-size:.82rem;margin-bottom:4px;border:1px solid transparent;cursor:pointer;transition:all .15s}
+.suggestion:hover{border-color:var(--acc);background:var(--acc-light);transform:translateX(2px)}
+.suggestion .tag{display:inline-block;padding:2px 6px;border-radius:4px;font-size:.65rem;font-weight:600;margin-right:6px;background:var(--acc-light);color:var(--acc)}
+.toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);z-index:999;padding:10px 20px;border-radius:8px;font-size:.82rem;opacity:0;transition:opacity .3s;pointer-events:none;color:#fff}
+.toast.show{opacity:1}
+.toast-ok{background:var(--green)}
+.toast-err{background:var(--red)}
+.toast-info{background:#1a1816}
+.empty-state{text-align:center;padding:40px;color:var(--text3)}
+.empty-state .icon{font-size:2rem;margin-bottom:8px;opacity:.5}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--acc);border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.error-banner{padding:10px 14px;background:#fdf0f0;border:1px solid var(--red);border-radius:6px;color:var(--red);font-size:.82rem;margin-bottom:8px;display:none}
+.error-banner.show{display:block;animation:slideIn .3s ease}
+@media(max-width:700px){
+  .grid{grid-template-columns:1fr}
+  .tabs{flex-wrap:wrap}
+  .tab{flex:1;text-align:center;font-size:.72rem;padding:6px 8px}
+  .container{padding:12px}
+}
+
+/* ═══ 三视图模型（灵感 / 写作 / 审阅）═══ */
+.view{min-height:80vh}
+.inspire-wrap{max-width:640px;margin:10vh auto 0;text-align:center;padding:20px}
+.inspire-logo{font-size:2.4rem;font-weight:700;color:var(--acc);letter-spacing:-1px;margin-bottom:6px}
+.inspire-sub{font-size:.95rem;color:var(--text3);margin-bottom:36px}
+.inspire-input{width:100%;padding:18px 22px;font-size:1.05rem;border-radius:12px;border:1px solid var(--border);background:var(--surface);text-align:center;outline:none;font-family:var(--font);transition:all .2s}
+.inspire-input:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(184,134,58,.18)}
+.btn-lg{padding:14px 40px;font-size:.98rem;border-radius:10px;margin-top:16px}
+.recent{margin-top:56px;text-align:left}
+.recent .rhead{font-size:.72rem;color:var(--text3);margin-bottom:8px;letter-spacing:.5px}
+.recent-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px;background:var(--surface);cursor:pointer;transition:all .15s}
+.recent-item:hover{border-color:var(--acc);transform:translateY(-1px);box-shadow:0 2px 10px rgba(0,0,0,.05)}
+.recent-item .ri-title{flex:1;font-size:.9rem}
+.recent-item .ri-meta{font-size:.72rem;color:var(--text3)}
+.recent-item .ri-score{font-weight:700;color:var(--acc);font-size:.9rem}
+
+.write-header{display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:2px solid var(--acc);margin-bottom:12px}
+.write-title{flex:1;display:flex;align-items:center;gap:10px;min-width:0}
+.write-title .pt{font-size:1.05rem;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.score-badge{font-size:.75rem;font-weight:700;color:#fff;background:var(--green);padding:2px 10px;border-radius:12px}
+.score-badge.low{background:var(--amber)}
+.write-actions{display:flex;gap:6px;align-items:center}
+.write-body{display:grid;grid-template-columns:1fr 320px;gap:16px;align-items:start}
+.editor-col textarea.chapter{min-height:52vh;font-size:.95rem;line-height:1.9}
+.editor-toolbar{display:flex;gap:8px;margin-top:8px;align-items:center}
+.suggest-col{position:sticky;top:0}
+.suggest-head{display:flex;align-items:center;justify-content:space-between;font-size:.8rem;font-weight:600;color:var(--text2);margin-bottom:8px}
+@media(max-width:900px){
+  .write-body{grid-template-columns:1fr}
+  .suggest-col{position:static}
+}
+
+/* 高级面板全屏层 */
+.panel-layer{position:fixed;inset:0;background:var(--bg);z-index:50;overflow-y:auto;padding:16px;animation:panelIn .25s ease}
+@keyframes panelIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:none}}
+.panel-top{max-width:1100px;margin:0 auto 12px;display:flex;justify-content:space-between;align-items:center}
+
+/* 抽屉（更多 / 审阅） */
+.drawer{position:fixed;top:0;right:0;height:100vh;width:380px;max-width:92vw;background:var(--surface);box-shadow:-6px 0 30px rgba(0,0,0,.12);z-index:60;padding:18px;overflow-y:auto;animation:drawerIn .25s ease}
+@keyframes drawerIn{from{transform:translateX(100%)}to{transform:none}}
+.drawer-item{padding:12px 14px;border-radius:8px;font-size:.88rem;cursor:pointer;border:1px solid transparent;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.drawer-item:hover{background:var(--acc-light);border-color:var(--acc)}
+.drawer-mask{position:fixed;inset:0;background:rgba(26,24,22,.35);z-index:55;backdrop-filter:blur(2px)}
+.review-score{text-align:center;padding:20px 0 8px}
+.review-score .num{font-size:3rem;font-weight:700;color:var(--acc);line-height:1}
+.review-score .meta{font-size:.78rem;color:var(--text3)}
+.review-sec{font-size:.78rem;font-weight:600;color:var(--text2);margin:14px 0 6px}
+.review-good{font-size:.78rem;color:var(--green);padding:5px 8px;margin-bottom:3px}
+</style>
+</head>
+<body>
+
+<div id="toast" class="toast"></div>
+<div id="error-banner" class="error-banner"></div>
+
+<div class="container">
+
+<!-- ═══ 灵感视图（默认）═══ -->
+<div id="view-inspiration" class="view">
+  <div class="inspire-wrap">
+    <div class="inspire-logo">✦ Æsirian</div>
+    <div class="inspire-sub">一个理解叙事的 AI 写作伙伴</div>
+    <input type="text" id="idea-input" class="inspire-input" placeholder="写下一个模糊的想法…  比如：一个修复罪忆水晶的人">
+    <div><button class="btn btn-p btn-lg" id="btn-create" onclick="startWriting()">✦ 开始写作</button></div>
+    <div id="recent-projects" class="recent">
+      <div class="rhead">最近项目</div>
+      <div id="recent-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 写作视图（核心）═══ -->
+<div id="view-writing" class="view hide">
+  <div class="write-header">
+    <div class="write-title">
+      <span id="project-title" class="pt">未命名项目</span>
+      <span id="score-badge" class="score-badge hide"></span>
+    </div>
+    <div class="write-actions">
+      <button class="btn btn-sm btn-p" id="btn-ai-continue" onclick="aiContinue()">✨ AI续写</button>
+      <button class="btn btn-sm" id="btn-generate" onclick="generateChapter()">生成草稿</button>
+      <button class="btn btn-sm" id="btn-submit" onclick="submitChapter()">🔍 审计</button>
+      <button class="btn btn-sm" onclick="exportMarkdown()">.md</button>
+      <button class="btn btn-sm" onclick="exportEpub()">.epub</button>
+      <button class="btn btn-sm" id="btn-more" onclick="toggleMore()">⋯</button>
+    </div>
+  </div>
+
+  <div class="write-body">
+    <div class="editor-col">
+      <textarea id="chapter-text" class="chapter" placeholder="在此写你的故事… 写完按 Ctrl+Enter 让 AI 续写，或点审计查看门禁"></textarea>
+      <div class="editor-toolbar">
+        <button class="btn btn-sm" onclick="loadSampleChapter1()">载入示例《罪忆》</button>
+        <span id="submit-status" style="font-size:.72rem;color:var(--text3)"></span>
+      </div>
+      <div id="submit-result"></div>
+    </div>
+    <div class="suggest-col">
+      <div class="suggest-head">
+        <span>💡 建议</span>
+        <button class="btn btn-sm" onclick="refreshSuggestions()">换一批</button>
+      </div>
+      <div id="sug-list"></div>
+      <div id="sug-stats" class="mt" style="font-size:.7rem;color:var(--text3)"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 高级面板全屏层（渐进披露）═══ -->
+<div id="panel-layer" class="panel-layer hide">
+  <div class="panel-top">
+    <span style="font-size:.85rem;color:var(--text3)" id="panel-title"></span>
+    <button class="btn btn-sm" onclick="closePanel()">✕ 返回写作</button>
+  </div>
+
+<!-- ═══ 更多抽屉 ═══ -->
+<div id="more-mask" class="drawer-mask hide" onclick="closeMore()"></div>
+<div id="more-drawer" class="drawer hide">
+  <div style="font-size:.95rem;font-weight:700;margin-bottom:14px">✦ 更多工具</div>
+  <div class="drawer-item" onclick="openPanel('mind')">◇ 心智网格</div>
+  <div class="drawer-item" onclick="openPanel('chapters')">☰ 章节列表</div>
+  <div class="drawer-item" onclick="openPanel('outline')">☰ 大纲规划</div>
+  <div class="drawer-item" onclick="openPanel('wiki')">◍ 世界观 Wiki</div>
+  <div class="drawer-item" onclick="openPanel('style')">◐ 风格与市场</div>
+  <div class="drawer-item" onclick="openPanel('simulate')">⧉ 假设推演</div>
+  <div class="drawer-item" onclick="openPanel('diverge')">✧ 碎片发散</div>
+</div>
+
+<!-- ═══ 审阅抽屉 ═══ -->
+<div id="review-mask" class="drawer-mask hide" onclick="closeReview()"></div>
+<div id="review-drawer" class="drawer hide">
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">
+    <span style="font-size:.95rem;font-weight:700">🔍 审计报告</span>
+    <button class="btn btn-sm" onclick="closeReview()">✕</button>
+  </div>
+  <div id="review-body"></div>
+</div>
+
+<div class="tab-content hide" id="tab-chapters">
+  <div id="chapters-empty" class="empty-state">
+    <div class="icon">☰</div>
+    <div>还没有已提交的章节</div>
+  </div>
+  <div id="chapters-list" class="hide"></div>
+</div>
+
+<div class="tab-content hide" id="tab-mind">
+  <div id="mind-empty" class="empty-state">
+    <div class="icon">◇</div>
+    <div>提交章节后自动生成角色心智网格</div>
+  </div>
+  <div id="mind-content" class="hide">
+    <div id="mind-svg" class="mindgrid"></div>
+    <div id="tension-zone" style="margin-top:8px"></div>
+    <div id="belief-panel" class="belief-panel hide"></div>
+    <details class="mt"><summary>JSON</summary><pre id="mind-json"></pre></details>
+  </div>
+</div>
+
+<div class="tab-content hide" id="tab-gates">
+  <div id="gates-empty" class="empty-state">
+    <div class="icon">⊞</div>
+    <div>提交章节后显示门禁结果</div>
+  </div>
+  <div id="gates-content" class="hide">
+    <div class="flex mb" style="justify-content:space-between">
+      <div id="gates-summary-cards" class="flex"></div>
+      <button class="btn btn-sm" id="btn-gate-mode" onclick="toggleGateMode()">专家模式 ▸</button>
+    </div>
+    <div id="gates-simplified"></div>
+    <div id="gates-expert" class="hide"></div>
+    <div id="gates-list" class="hide"></div>
+  </div>
+</div>
+
+<div class="tab-content hide" id="tab-suggest">
+  <div id="sug-empty" class="empty-state">
+    <div class="icon">→</div>
+    <div>提交章节后续写建议将在此显示</div>
+  </div>
+  <div id="sug-list" class="hide"></div>
+  <div id="sug-stats" class="mt" style="font-size:.78rem;color:var(--text3)"></div>
+</div>
+
+<div class="tab-content hide" id="tab-wiki">
+  <div class="card" style="margin-bottom:12px">
+    <h3>◍ 世界构建 Wiki</h3>
+    <div class="flex mb">
+      <input type="text" id="wiki-name" placeholder="名称" style="max-width:140px">
+      <select id="wiki-type" style="max-width:110px">
+        <option value="location">地点</option>
+        <option value="item">物品</option>
+        <option value="event">事件</option>
+      </select>
+      <input type="text" id="wiki-desc" placeholder="描述（可选）">
+      <button class="btn btn-sm" onclick="addWikiElement()">+ 添加</button>
+      <button class="btn btn-sm" id="btn-harvest" onclick="harvestWiki()">⚡ 从章节自动收获</button>
+    </div>
+  </div>
+  <div id="wiki-groups"></div>
+</div>
+
+<div class="tab-content hide" id="tab-outline">
+  <div class="card" style="margin-bottom:12px">
+    <h3>☰ 递归大纲 — WriteHERE 分解 + 方法论标注</h3>
+    <div class="flex mb">
+      <input type="text" id="ol-premise" placeholder="一句话前提…" value="" style="flex:1;min-width:180px">
+      <select id="ol-template" style="max-width:130px">
+        <option value="three_act">三幕结构</option>
+        <option value="hero_journey">英雄之旅</option>
+        <option value="save_the_cat">救猫咪 15 拍</option>
+        <option value="story_circle">故事圈 8 步</option>
+      </select>
+      <input type="number" id="ol-chapters" value="9" min="4" max="30" style="max-width:70px" title="目标章数">
+      <button class="btn btn-p" id="btn-outline" onclick="generateOutline()">生成大纲</button>
+    </div>
+    <div style="font-size:.7rem;color:var(--text3)">标注体系：⚡ GOAT 场景电荷 · ◇ Dramatica 四视角 · ⛓ MICE 线程 · ▲ Freytag/Yorke 高潮位</div>
+    <div class="flex mt">
+      <button class="btn btn-sm" onclick="inspectContext()">⧉ 视察上下文（当前项目）</button>
+    </div>
+    <div id="ol-status" style="font-size:.78rem;color:var(--text3)"></div>
+  </div>
+  <div id="ol-result"></div>
+  <div class="card" id="ol-ctx-card" style="display:none">
+    <h3>⧉ 上下文视察器（生成时实际注入的分层）</h3>
+    <div id="ol-ctx-layers" style="font-size:.78rem"></div>
+  </div>
+</div>
+
+<div class="tab-content hide" id="tab-simulate">
+  <div class="card" style="margin-bottom:12px">
+    <h3>⧉ 假设推演 — "如果…会怎样"</h3>
+    <input type="text" id="sim-hypothesis" placeholder="假设：如果陈默发现曹渊在撒谎…">
+    <div id="sim-belief-editor" style="font-size:.78rem;color:var(--text3);margin:6px 0">信念变更（可选）：在心智网格中选择角色后添加，或直接填写</div>
+    <div class="flex mb">
+      <input type="text" id="sim-char" placeholder="角色名" style="max-width:120px">
+      <input type="text" id="sim-prop" placeholder="信念命题，如「曹渊在撒谎」">
+      <select id="sim-val" style="max-width:90px"><option value="true">为真</option><option value="false">为假</option></select>
+      <button class="btn btn-sm" onclick="addSimBelief()">+ 加入推演</button>
+    </div>
+    <div id="sim-belief-list" class="mb"></div>
+    <button class="btn btn-p" id="btn-simulate" onclick="runSimulation()">▶ 运行推演</button>
+    <span id="sim-status" style="font-size:.78rem;color:var(--text3)"></span>
+  </div>
+  <div id="sim-result"></div>
+</div>
+
+<div class="tab-content hide" id="tab-diverge">
+  <div class="card" style="margin-bottom:12px">
+    <h3>✧ 碎片发散 — 画面 → 世界线</h3>
+    <textarea id="div-fragments" placeholder="每行一个碎片画面…&#10;雨夜便利店的暖黄灯光&#10;抽屉里没有署名的信&#10;开走的末班地铁" style="min-height:100px"></textarea>
+    <div class="flex mb">
+      <button class="btn btn-p" id="btn-diverge" onclick="runDiverge()">✧ 生成 5 条世界线</button>
+      <span id="div-status" style="font-size:.78rem;color:var(--text3)"></span>
+    </div>
+  </div>
+  <div id="div-result"></div>
+</div>
+
+<div class="tab-content hide" id="tab-style">
+  <div id="style-empty" class="empty-state">
+    <div class="icon">◐</div>
+    <div>提交章节后可生成风格指纹雷达图</div>
+  </div>
+  <div id="style-content" class="hide">
+    <div id="style-meta" style="font-size:.78rem;color:var(--text3);margin-bottom:8px"></div>
+    <div class="grid">
+      <div class="card" style="margin:0">
+        <h3>风格雷达</h3>
+        <div id="style-radar"></div>
+      </div>
+      <div class="card" style="margin:0">
+        <h3>感官通道分布</h3>
+        <div id="style-sensory"></div>
+      </div>
+    </div>
+    <div class="card">
+      <h3>对话 / 叙述 / 独白</h3>
+      <div id="style-dialogue"></div>
+    </div>
+    <div class="card">
+      <h3>⺆ 风格市场</h3>
+      <div class="flex mb">
+        <input type="text" id="mkt-publish-name" placeholder="把当前项目风格发布为…" style="max-width:200px">
+        <button class="btn btn-sm btn-p" onclick="publishStyleProfile()">发布</button>
+      </div>
+      <div id="mkt-list"></div>
+    </div>
+  </div>
+</div>
+</div><!-- /panel-layer -->
+
+</div>
+
+<script>
+// 同源 API：开发/测试/打包三种场景通吃（可用 ?api= 覆盖）
+const API = new URLSearchParams(location.search).get('api') || location.origin;
+let PID = null;
+let busy = false;
+
+// ─── 工具 ───
+function $(id) { return document.getElementById(id); }
+
+function toast(msg, kind) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show toast-' + (kind || 'info');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => { t.className = 'toast'; }, 2800);
+}
+
+function showError(msg) {
+  const b = $('error-banner');
+  b.textContent = '⚠ ' + msg;
+  b.className = 'error-banner show';
+  clearTimeout(showError._t);
+  showError._t = setTimeout(() => { b.className = 'error-banner'; }, 5000);
+}
+
+function clearError() {
+  $('error-banner').className = 'error-banner';
+}
+
+function setBusy(el, label) {
+  if (!el) return;
+  if (busy) { el.dataset._orig = el.dataset._orig || el.innerHTML; el.innerHTML = '<span class="spinner"></span> ' + (label || '处理中…'); el.disabled = true; }
+  else { el.innerHTML = el.dataset._orig || label; el.disabled = false; }
+}
+
+async function api(path, data) {
+  const opts = { headers: {'Content-Type': 'application/json'} };
+  if (data) { opts.method = 'POST'; opts.body = JSON.stringify(data); }
+  const r = await fetch(API + path, opts);
+  if (!r.ok) { const e = await r.text(); throw new Error('HTTP ' + r.status + ': ' + e.slice(0, 150)); }
+  return r.json();
+}
+
+// ═══ 三视图导航（灵感 / 写作 / 高级面板 / 抽屉）═══
+const PANEL_TITLES = {
+  mind: '◇ 心智网格', chapters: '☰ 章节列表', outline: '☰ 大纲规划',
+  wiki: '◍ 世界观 Wiki', style: '◐ 风格与市场', simulate: '⧉ 假设推演',
+  diverge: '✧ 碎片发散', gates: '⊞ 审计详情',
+};
+
+function switchView(name) {
+  $('view-inspiration').classList.toggle('hide', name !== 'inspiration');
+  $('view-writing').classList.toggle('hide', name !== 'writing');
+  closeMore();
+  closeReview();
+  closePanel();
+  if (name === 'writing' && PID) {
+    refresh();
+    refreshSuggestions();
+  }
+}
+
+function switchTab(name) {
+  if (name === 'writing') { switchView('writing'); return; }
+  openPanel(name);
+}
+
+function openPanel(name) {
+  const layer = $('panel-layer');
+  layer.classList.remove('hide');
+  // 隐藏所有 tab-content，只显示目标面板
+  layer.querySelectorAll('.tab-content').forEach(t => t.classList.add('hide'));
+  const target = layer.querySelector('#tab-' + name);
+  if (target) target.classList.remove('hide');
+  const title = $('panel-title');
+  if (title) title.textContent = PANEL_TITLES[name] || name;
+  // 按面板加载数据
+  if (name === 'chapters') loadChapters();
+  if (name === 'style') loadStyleReport();
+  if (name === 'wiki') loadWiki();
+  closeMore();
+}
+
+function closePanel() {
+  const layer = $('panel-layer');
+  if (layer) layer.classList.add('hide');
+}
+
+function toggleMore() {
+  const open = $('more-drawer').classList.contains('hide');
+  $('more-drawer').classList.toggle('hide', !open);
+  $('more-mask').classList.toggle('hide', !open);
+}
+
+function closeMore() {
+  $('more-drawer').classList.add('hide');
+  $('more-mask').classList.add('hide');
+}
+
+function openReview() {
+  $('review-drawer').classList.remove('hide');
+  $('review-mask').classList.remove('hide');
+}
+
+function closeReview() {
+  $('review-drawer').classList.add('hide');
+  $('review-mask').classList.add('hide');
+}
+
+// ─── 健康检查 ───
+async function checkHealth() {
+  try {
+    await api('/health');
+  } catch (e) {
+    /* 静默——连接状态不阻塞写作 */
+  }
+}
+
+// ─── 从灵感开始写作 ───
+async function startWriting() {
+  const idea = $('idea-input').value.trim();
+  if (!idea) { toast('写下一个想法再开始', 'err'); $('idea-input').focus(); return; }
+  if (busy) return;
+  busy = true;
+  const btn = $('btn-create');
+  setBusy(btn, '创建中…');
+  try {
+    const d = await api('/import-from-pwa', {
+      premise: idea.slice(0, 100),
+      unit_text: idea,
+      characters: [{ name: '主角', role: '' }, { name: '配角', role: '' }]
+    });
+    PID = d.project_id;
+    $('project-title').textContent = idea.slice(0, 24) || '新项目';
+    clearError();
+    toast('已开始写作 ✦', 'ok');
+    loadRecentProjects();
+    switchView('writing');
+  } catch (e) {
+    showError('创建失败: ' + e.message);
+  } finally {
+    busy = false;
+    setBusy(btn, '✦ 开始写作');
+  }
+}
+
+// ─── 最近项目（灵感视图） ───
+async function loadRecentProjects() {
+  try {
+    const list = await api('/projects');
+    const el = $('recent-list');
+    const recent = (list || []).slice(0, 5);
+    if (!recent.length) {
+      el.innerHTML = '<div style="font-size:.8rem;color:var(--text3);text-align:center;padding:8px">还没有项目——写下第一个想法吧</div>';
+      return;
+    }
+    el.innerHTML = recent.map(p => {
+      const title = (p.title || '未命名').slice(0, 20);
+      return '<div class="recent-item" onclick="openProject(\'' + p.id + '\',\'' + title.replace(/'/g, '') + '\')">' +
+        '<span class="ri-title">📖 ' + title + '</span>' +
+        '<span class="ri-meta">' + (p.updated_at || '').slice(0, 10) + '</span>' +
+        '</div>';
+    }).join('');
+  } catch (e) { /* 列表可选 */ }
+}
+
+async function openProject(pid, title) {
+  PID = pid;
+  $('project-title').textContent = title || '项目';
+  toast('已打开项目', 'ok');
+  switchView('writing');
+}
+
+// ─── 刷新 ───
+async function refresh() {
+  if (!PID) return;
+  try {
+    const mg = await api('/project/' + PID + '/mind-grid');
+    renderMindGrid(mg);
+    // 更新评分徽章
+    const score = mg.overall_audit_score;
+    if (typeof score === 'number') {
+      const badge = $('score-badge');
+      badge.textContent = Math.round(score) + '分';
+      badge.classList.remove('hide', 'low');
+      if (score < 70) badge.classList.add('low');
+    }
+  } catch (e) { /* 静默 */ }
+}
+
+// ─── 提交章节 ───
+async function submitChapter() {
+  const text = $('chapter-text').value.trim();
+  if (!text) { toast('请先写内容', 'err'); $('chapter-text').focus(); return; }
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  if (busy) return;
+  busy = true;
+  const btn = $('btn-submit');
+  setBusy(btn, '分析中…');
+  $('submit-status').innerHTML = '<span class="spinner"></span> 分析中（含166道门禁）…';
+  $('submit-result').innerHTML = '';
+  try {
+    const d = await api('/project/' + PID + '/submit-chapter', { project_id: PID, text: text });
+    let scoreHtml = '';
+    if (d.submitted) {
+      scoreHtml += '<div style="color:var(--green);margin-bottom:8px">✅ 提交通过 · ' + d.overall_score + '/100</div>';
+    } else {
+      scoreHtml += '<div style="color:var(--red);margin-bottom:8px">❌ 被拦截 · ' + d.overall_score + '/100</div>';
+    }
+    $('submit-result').innerHTML = scoreHtml;
+    clearError();
+    toast(d.submitted ? '章节通过 ✓' : '门禁拦截', d.submitted ? 'ok' : 'err');
+    await refresh();
+    try {
+      const sug = await api('/project/' + PID + '/suggestions', { project_id: PID });
+      renderSuggestions(sug);
+    } catch (e) { /* 建议接口可选 */ }
+    // 审阅视图：弹出抽屉（审阅视图模型）
+    renderReview(d);
+    openReview();
+  } catch (e) {
+    $('submit-result').innerHTML = '<div style="color:var(--red)">❌ ' + e.message + '</div>';
+    showError('提交失败: ' + e.message);
+  } finally {
+    busy = false;
+    setBusy(btn, '🔍 审计');
+    $('submit-status').textContent = '';
+  }
+}
+
+// ─── 审阅视图（抽屉内渲染） ───
+function renderReview(d) {
+  const allGates = (d.gate_results || []).concat(d.audit_results || []).concat(d.plugin_gates || []);
+  const nPass = allGates.filter(g => g.level === 'PASS' || g.level === 'pass').length;
+  const nWarn = allGates.filter(g => g.level === 'WARN' || g.level === 'warn').length;
+  const nBlock = allGates.filter(g => g.level === 'BLOCK' || g.level === 'block').length;
+  const nSkip = allGates.filter(g => g.skipped).length;
+  const nonPass = allGates.filter(g => !['PASS', 'pass'].includes(g.level) && !g.skipped);
+  const cross = d.cross_chapter || [];
+
+  let html = '<div class="review-score"><div class="num">' + Math.round(d.overall_score) + '</div>' +
+    '<div class="meta">' + (d.submitted ? '提交通过' : '被拦截') + ' · 共 ' + allGates.length + ' 项</div></div>';
+  html += '<div class="gate-cards">' +
+    '<div class="gate-card pass"><div class="num">' + nPass + '</div><div class="lbl">通过</div></div>' +
+    '<div class="gate-card warn"><div class="num">' + nWarn + '</div><div class="lbl">提醒</div></div>' +
+    '<div class="gate-card block"><div class="num">' + nBlock + '</div><div class="lbl">阻断</div></div>' +
+    (nSkip ? '<div class="gate-card" style="background:var(--bg)"><div class="num" style="color:var(--text3)">' + nSkip + '</div><div class="lbl">跳过</div></div>' : '') +
+    '</div>';
+
+  if (cross.length) {
+    html += '<div class="review-sec">⛓ 跨章一致性（' + cross.length + '）</div>' +
+      cross.map(c => '<div class="gate ' + (c.severity === 'BLOCK' ? 'gate-block' : 'gate-warn') + '" style="font-size:.75rem">' + (c.detail || '') + '</div>').join('');
+  }
+  if (nonPass.length) {
+    html += '<div class="review-sec">⚠️ 需要关注</div>' +
+      nonPass.slice(0, 5).map(g =>
+        '<div class="gate ' + (g.level === 'BLOCK' ? 'gate-block' : 'gate-warn') + '" style="font-size:.75rem">' +
+        '<strong>' + (g.gate_id || '') + '</strong> ' + (g.message || '').slice(0, 80) + '</div>'
+      ).join('') +
+      (nonPass.length > 5 ? '<div style="font-size:.7rem;color:var(--text3);margin-top:4px">…还有 ' + (nonPass.length - 5) + ' 条</div>' : '');
+  }
+  if (!nonPass.length) {
+    html += '<div class="review-sec">✅ 表现良好</div><div class="review-good">全部门禁通过，无警告</div>';
+  }
+  html += '<div style="display:flex;gap:8px;margin-top:16px">' +
+    '<button class="btn btn-sm" onclick="renderGateResults(LAST_GATES||[],true);openPanel(\'gates\')">📊 详细报告</button>' +
+    '<button class="btn btn-sm" onclick="closeReview()">返回写作</button></div>';
+  $('review-body').innerHTML = html;
+}
+
+// ─── 建议刷新 ───
+async function refreshSuggestions() {
+  if (!PID) return;
+  try {
+    const sug = await api('/project/' + PID + '/suggestions', { project_id: PID });
+    renderSuggestions(sug);
+  } catch (e) { /* 静默 */ }
+}
+
+// ─── 心智网格（交互式：力导向 + 拖拽 + 信念编辑） ───
+let MG = { nodes: [], links: [], sim: null, selected: null, dragging: false };
+let MGDATA = null;
+
+function renderMindGrid(mg) {
+  const chars = mg.characters || [];
+  MGDATA = mg;
+  if (!Array.isArray(chars) || chars.length === 0) {
+    $('mind-content').className = 'hide';
+    $('mind-empty').className = '';
+    return;
+  }
+  $('mind-empty').className = 'hide';
+  $('mind-content').className = '';
+  $('mind-json').textContent = JSON.stringify(mg, null, 2);
+
+  const w = ($('mind-svg').clientWidth || 640), h = 280;
+  const cx = w / 2, cy = h / 2, R = Math.min(w, h) / 3.2;
+
+  // 初始化节点（保持已有位置以避免跳动）
+  const prev = {}; (MG.nodes || []).forEach(n => prev[n.id] = n);
+  MG.nodes = chars.map((c, i) => {
+    const angle = i / chars.length * Math.PI * 2 - Math.PI / 2;
+    const old = prev[c.id];
+    return {
+      id: c.id, name: c.name, char: c,
+      x: old ? old.x : cx + R * Math.cos(angle),
+      y: old ? old.y : cy + R * Math.sin(angle),
+      vx: 0, vy: 0,
+    };
+  });
+
+  // 关系边
+  MG.links = (mg.relationships || []).map(r => {
+    const s = MG.nodes.find(n => n.id === r.source || n.name === r.source);
+    const t = MG.nodes.find(n => n.id === r.target || n.name === r.target);
+    return s && t ? { source: s, target: t, type: r.type } : null;
+  }).filter(Boolean);
+
+  ensureMindGridEvents();
+  startMindSim(w, h);
+  drawMindGrid(w, h);
+  renderTensions(mg.tension_points || []);
+}
+
+// 事件委托：容器监听一次，SVG 重绘不丢监听（click 由拖拽位移判定放过）
+let _mgEventsBound = false;
+function ensureMindGridEvents() {
+  if (_mgEventsBound) return;
+  _mgEventsBound = true;
+  const container = $('mind-svg');
+  container.addEventListener('click', ev => {
+    const g = ev.target.closest('.mg-node');
+    if (g) selectCharacter(encodeURIComponent(g.dataset.id));
+  });
+  // mousedown 拖拽（委托版）
+  container.addEventListener('mousedown', ev => {
+    const g = ev.target.closest('.mg-node');
+    if (!g) return;
+    const n = MG.nodes.find(n => n.id === g.dataset.id);
+    if (!n) return;
+    MG.dragging = true;
+    const w = container.clientWidth || 640, h = 280;
+    const move = e => {
+      const rect = container.getBoundingClientRect();
+      n.x = e.clientX - rect.left; n.y = e.clientY - rect.top;
+      n.vx = n.vy = 0;
+      drawMindGrid(w, h);
+    };
+    const up = () => {
+      MG.dragging = false;
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+    };
+    document.addEventListener('mousemove', move);
+    document.addEventListener('mouseup', up);
+    ev.preventDefault();
+  });
+}
+
+function startMindSim(w, h) {
+  if (MG.sim) clearInterval(MG.sim);
+  const REPUL = 4200, SPRING = 0.015, DAMP = 0.86, CENTER = 0.005;
+  let idle_frames = 0;
+  MG.sim = setInterval(() => {
+    if (MG.dragging) return;
+    let energy = 0;
+    // 斥力
+    for (let i = 0; i < MG.nodes.length; i++) {
+      for (let j = i + 1; j < MG.nodes.length; j++) {
+        const a = MG.nodes[i], b = MG.nodes[j];
+        let dx = b.x - a.x, dy = b.y - a.y;
+        let d2 = dx * dx + dy * dy || 1;
+        let f = REPUL / d2;
+        let d = Math.sqrt(d2);
+        dx /= d; dy /= d;
+        a.vx -= dx * f; a.vy -= dy * f;
+        b.vx += dx * f; b.vy += dy * f;
+      }
+    }
+    // 弹簧（关系边）
+    for (const l of MG.links) {
+      const dx = l.target.x - l.source.x, dy = l.target.y - l.source.y;
+      const d = Math.sqrt(dx * dx + dy * dy) || 1;
+      const f = (d - 120) * SPRING;
+      l.source.vx += dx / d * f; l.source.vy += dy / d * f;
+      l.target.vx -= dx / d * f; l.target.vy -= dy / d * f;
+    }
+    // 向心力 + 阻尼 + 边界
+    for (const n of MG.nodes) {
+      n.vx += (w / 2 - n.x) * CENTER;
+      n.vy += (h / 2 - n.y) * CENTER;
+      n.vx *= DAMP; n.vy *= DAMP;
+      n.x += n.vx; n.y += n.vy;
+      n.x = Math.max(36, Math.min(w - 36, n.x));
+      n.y = Math.max(36, Math.min(h - 36, n.y));
+      energy += Math.abs(n.vx) + Math.abs(n.vy);
+    }
+    drawMindGrid(w, h);
+    // 布局收敛（能量足够低）→ 停帧，节点稳定可点击
+    idle_frames = energy < 0.6 ? idle_frames + 1 : 0;
+    if (idle_frames > 20) { clearInterval(MG.sim); MG.sim = null; }
+  }, 33);
+}
+
+function drawMindGrid(w, h) {
+  let svg = '<svg width="' + w + '" height="' + h + '">';
+  for (const l of MG.links) {
+    svg += '<line x1="' + l.source.x + '" y1="' + l.source.y + '" x2="' + l.target.x + '" y2="' + l.target.y + '" stroke="#d5ceC2" stroke-width="1.5" stroke-dasharray="4 3"/>';
+  }
+  for (const n of MG.nodes) {
+    const sel = MG.selected === n.id ? ' selected' : '';
+    svg += '<g class="mg-node' + sel + '" data-id="' + n.id + '">'
+      + '<circle cx="' + n.x + '" cy="' + n.y + '" r="24" fill="#e8e4de" stroke="#b8863a" stroke-width="1.5"/>'
+      + '<text x="' + n.x + '" y="' + (n.y + 5) + '" text-anchor="middle" font-size="13" font-weight="600" fill="#1a1816">' + (n.name[0] || '?') + '</text>'
+      + '<text x="' + n.x + '" y="' + (n.y + 38) + '" text-anchor="middle" font-size="9" fill="#6b6560">' + n.name + '</text>';
+    const bc = Object.keys(n.char.world_beliefs || {}).length;
+    if (bc > 0) {
+      svg += '<circle cx="' + (n.x + 18) + '" cy="' + (n.y - 18) + '" r="8" fill="#b8863a"/>'
+        + '<text x="' + (n.x + 18) + '" y="' + (n.y - 15) + '" text-anchor="middle" font-size="8" font-weight="700" fill="#fff">' + bc + '</text>';
+    }
+    if ((n.char.secret_count || 0) > 0) {
+      svg += '<circle cx="' + (n.x - 18) + '" cy="' + (n.y - 18) + '" r="4" fill="#c44a4a"/>';
+    }
+    svg += '</g>';
+  }
+  svg += '</svg>';
+  $('mind-svg').innerHTML = svg;
+}
+
+function renderTensions(tensions) {
+  const z = $('tension-zone');
+  if (!tensions || !tensions.length) { z.innerHTML = ''; return; }
+  z.innerHTML = '<div style="font-size:.72rem;color:var(--text3);margin-bottom:2px">当前张力点</div>' +
+    tensions.map(t =>
+      '<span class="tension-chip">⚡ ' + (t.description || '').slice(0, 40) +
+      (t.intensity != null ? ' (' + Number(t.intensity).toFixed(1) + ')' : '') + '</span>'
+    ).join('');
+}
+
+function selectCharacter(encId) {
+  const id = decodeURIComponent(encId);
+  MG.selected = id;
+  const node = MG.nodes.find(n => n.id === id);
+  if (!node) return;
+  drawMindGrid($('mind-svg').clientWidth || 640, 280);
+  renderBeliefPanel(node.char);
+}
+
+function renderBeliefPanel(c) {
+  const panel = $('belief-panel');
+  panel.className = 'belief-panel';
+  const beliefs = Object.entries(c.world_beliefs || {});
+  const goals = c.active_goals || [];
+  let html = '<h4>◇ ' + c.name + ' 的信念状态' +
+    ((c.secret_count || 0) > 0 ? ' <span style="color:var(--red);font-size:.68rem">● ' + c.secret_count + '个秘密</span>' : '') + '</h4>';
+  if (!beliefs.length) html += '<div style="font-size:.75rem;color:var(--text3)">暂无信念记录——提交更多章节或手动添加</div>';
+  for (const [prop, b] of beliefs) {
+    const isTrue = b.value === true || b.value === '真' || b.value === '是';
+    html += '<div class="belief-item">' +
+      '<span class="val' + (isTrue ? '' : ' neg') + '">' + (isTrue ? '✓' : '✗') + '</span>' +
+      '<span>' + prop + '</span>' +
+      (b.confidence != null ? '<span class="conf">置信 ' + Number(b.confidence).toFixed(2) + '</span>' : '') +
+      '<button class="btn btn-sm" onclick="toggleBelief(\'' + encodeURIComponent(c.name) + '\',\'' + encodeURIComponent(prop) + '\',' + (isTrue ? 'false' : 'true') + ')">反转</button>' +
+      '</div>';
+  }
+  if (goals.length) {
+    html += '<div style="font-size:.72rem;color:var(--text3);margin-top:8px">目标：' +
+      goals.map(g => typeof g === 'string' ? g : (g.description || '')).join('；').slice(0, 120) + '</div>';
+  }
+  html += '<div class="belief-add">' +
+    '<input type="text" id="new-belief-prop" placeholder="新信念命题，如「曹渊在撒谎」">' +
+    '<select id="new-belief-val"><option value="true">为真</option><option value="false">为假</option></select>' +
+    '<button class="btn btn-sm btn-p" onclick="addBelief(\'' + encodeURIComponent(c.name) + '\')">添加</button>' +
+    '</div>';
+  panel.innerHTML = html;
+}
+
+async function toggleBelief(encChar, encProp, newVal) {
+  const character = decodeURIComponent(encChar), proposition = decodeURIComponent(encProp);
+  try {
+    const d = await api('/project/' + PID + '/belief', {
+      project_id: PID, character, proposition, value: newVal
+    });
+    toast('信念已更新 · 张力 ' + (d.tensions || []).length + ' 处', 'ok');
+    await refresh();
+    reselectAfterRefresh(character);
+  } catch (e) {
+    showError('信念更新失败: ' + e.message);
+  }
+}
+
+async function addBelief(encChar) {
+  const character = decodeURIComponent(encChar);
+  const prop = $('new-belief-prop').value.trim();
+  if (!prop) { toast('请输入信念命题', 'err'); return; }
+  const val = $('new-belief-val').value === 'true';
+  try {
+    const d = await api('/project/' + PID + '/belief', {
+      project_id: PID, character, proposition: prop, value: val
+    });
+    toast('信念已添加 · 张力 ' + (d.tensions || []).length + ' 处', 'ok');
+    await refresh();
+    reselectAfterRefresh(character);
+  } catch (e) {
+    showError('信念添加失败: ' + e.message);
+  }
+}
+
+// ─── 门禁分级显示（#10：新手摘要 + 专家全量） ───
+let LAST_GATES = [];
+let GATE_EXPERT = false;
+let GATE_FILTER = 'ALL';
+
+function reselectAfterRefresh(charName) {
+  // refresh() 会重建节点，重新选中并滚动到面板
+  setTimeout(() => {
+    selectCharacter(encodeURIComponent(charName));
+    $('belief-panel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }, 300);
+}
+
+function renderGateResults(gates, submitted) {
+  LAST_GATES = gates;
+  if (!gates.length) {
+    $('gates-empty').className = 'empty-state';
+    $('gates-content').className = 'hide';
+    return;
+  }
+  $('gates-empty').className = 'empty-state hide';
+  $('gates-content').className = '';
+  renderGateSummary(gates);
+  renderGateDetail(gates);
+}
+
+function renderGateSummary(gates) {
+  const nPass = gates.filter(g => g.level === 'PASS' || g.level === 'pass').length;
+  const nWarn = gates.filter(g => g.level === 'WARN' || g.level === 'warn').length;
+  const nBlock = gates.filter(g => g.level === 'BLOCK' || g.level === 'block').length;
+  const nSkipped = gates.filter(g => g.skipped).length;
+  const nonPass = gates.filter(g => !['PASS', 'pass'].includes(g.level) && !g.skipped);
+  const highlights = nonPass.slice(0, 4).map(g =>
+    '<div class="gate ' + (['BLOCK', 'block'].includes(g.level) ? 'gate-block' : 'gate-warn') + '" style="font-size:.75rem">' +
+    '<strong>' + (g.gate_id || g.gate_name || '') + '</strong> ' + (g.gate_name || '') + ' — ' + (g.message || '').slice(0, 60) + '</div>'
+  ).join('');
+  $('gates-summary-cards').innerHTML =
+    '<div class="gate-cards">' +
+    '<div class="gate-card pass"><div class="num">' + nPass + '</div><div class="lbl">通过</div></div>' +
+    '<div class="gate-card warn"><div class="num">' + nWarn + '</div><div class="lbl">警告</div></div>' +
+    '<div class="gate-card block"><div class="num">' + nBlock + '</div><div class="lbl">拦截</div></div>' +
+    (nSkipped > 0 ? '<div class="gate-card" style="background:var(--bg)"><div class="num" style="color:var(--text3)">' + nSkipped + '</div><div class="lbl">跳过¹</div></div>' : '') +
+    '</div>' +
+    (nSkipped > 0 ? '<div style="font-size:.66rem;color:var(--text3);margin-top:4px">¹ 结构/进度门禁需更多章节上下文，自动跳过</div>' : '');
+  $('gates-simplified').innerHTML = highlights +
+    (nonPass.length > 4 ? '<div style="font-size:.7rem;color:var(--text3)">…还有 ' + (nonPass.length - 4) + ' 条，切换专家模式查看全部</div>' : '') +
+    (nBlock === 0 && nWarn === 0 ? '<div style="color:var(--green);font-size:.78rem;padding:6px 0">全部门禁通过，无警告</div>' : '');
+}
+
+function renderGateDetail(gates) {
+  const filtered = GATE_FILTER === 'ALL' ? gates : gates.filter(g => g.level === GATE_FILTER);
+  $('gates-expert').innerHTML =
+    '<div class="gate-filters">' +
+    ['ALL', 'WARN', 'BLOCK'].map(f =>
+      '<button class="btn btn-sm' + (GATE_FILTER === f ? ' active' : '') + '" onclick="setGateFilter(\'' + f + '\')">' +
+      (f === 'ALL' ? '全部 ' + gates.length : f === 'WARN' ? '警告 ' + gates.filter(g => g.level === 'WARN').length : '拦截 ' + gates.filter(g => g.level === 'BLOCK').length) +
+      '</button>'
+    ).join('') +
+    '</div>' +
+    filtered.map(g => {
+      const cls = g.level === 'BLOCK' ? 'var(--red)' : g.level === 'WARN' ? 'var(--amber)' : 'var(--green)';
+      return '<div class="gate-row" style="border-color:' + cls + '">' +
+        '<span class="gid">' + (g.gate_id || '') + '</span>' +
+        '<span class="gname">' + (g.gate_name || '') + '</span>' +
+        '<span class="gmsg">' + (g.message || '').slice(0, 90) +
+        (g.suggestion ? ' <em style="color:var(--acc)">→ ' + String(g.suggestion).slice(0, 60) + '</em>' : '') +
+        '</span></div>';
+    }).join('') || '<div style="font-size:.75rem;color:var(--text3)">该级别无结果</div>';
+}
+
+function toggleGateMode() {
+  GATE_EXPERT = !GATE_EXPERT;
+  $('btn-gate-mode').textContent = GATE_EXPERT ? '◂ 简易模式' : '专家模式 ▸';
+  $('gates-simplified').className = GATE_EXPERT ? 'hide' : '';
+  $('gates-expert').className = GATE_EXPERT ? '' : 'hide';
+  if (GATE_EXPERT) renderGateDetail(LAST_GATES);
+}
+
+function setGateFilter(f) {
+  GATE_FILTER = f;
+  renderGateDetail(LAST_GATES);
+}
+
+// ─── #12 跨章一致性显示 ───
+function renderCrossChapter(conflicts) {
+  let zone = document.getElementById('cross-chapter-zone');
+  if (!zone) {
+    zone = document.createElement('div');
+    zone.id = 'cross-chapter-zone';
+    document.getElementById('gates-content').appendChild(zone);
+  }
+  zone.innerHTML = '';
+  if (!conflicts || !conflicts.length) return;
+  const typeLabels = {
+    fact_contradiction: '事实矛盾',
+    identity_shift_unexplained: '身份突变',
+    belief_contradiction: '信念冲突',
+  };
+  zone.innerHTML = '<h4 style="font-size:.8rem;color:var(--red);margin:12px 0 6px">⛓ 跨章一致性 (' + conflicts.length + ')</h4>' +
+    conflicts.map(c =>
+      '<div class="gate ' + (c.severity === 'BLOCK' ? 'gate-block' : 'gate-warn') + '" style="font-size:.75rem">' +
+      '<strong>[' + (typeLabels[c.type] || c.type) + ']</strong> ' + (c.detail || '') + '</div>'
+    ).join('');
+}
+// ─── #12 END ───
+
+// ─── 风格指纹报告（#11：SVG 雷达图） ───
+async function loadStyleReport() {
+  if (!PID) { $('style-empty').className = 'empty-state'; $('style-content').className = 'hide'; return; }
+  try {
+    const d = await api('/project/' + PID + '/style-report');
+    $('style-empty').className = 'empty-state hide';
+    $('style-content').className = '';
+    $('style-meta').textContent = '《' + (d.title || '') + '》 · ' + d.chapter_count + ' 章 · ' + d.total_chars + ' 字';
+    const radar = (d.dashboard.radar || {}).indicators || [];
+    drawRadar('style-radar', radar);
+    const sensory = d.dashboard.sensory_radar || {};
+    drawSensory('style-sensory', sensory);
+    const pie = d.dashboard.dialogue_pie || {};
+    drawDialoguePie('style-dialogue', pie);
+    loadMarketplace();
+  } catch (e) {
+    $('style-empty').className = 'empty-state';
+    $('style-content').className = 'hide';
+    if (String(e.message).includes('尚无')) $('style-empty').querySelector('div:last-child').textContent = '先提交至少一章';
+    else showError('风格报告失败: ' + e.message);
+  }
+}
+
+function polar(cx, cy, r, angle) {
+  return [cx + r * Math.cos(angle), cy + r * Math.sin(angle)];
+}
+
+function drawRadar(elId, indicators) {
+  const w = 300, h = 260, cx = w / 2, cy = h / 2, R = 90;
+  const n = Math.max(indicators.length, 3);
+  let svg = '<svg width="' + w + '" height="' + h + '">';
+  // 网格
+  for (let ring = 1; ring <= 4; ring++) {
+    const r = R * ring / 4;
+    svg += '<polygon points="' + Array.from({ length: n }, (_, i) =>
+      polar(cx, cy, r, i / n * Math.PI * 2 - Math.PI / 2).map(v => v.toFixed(1)).join(',')
+    ).join(' ') + '" fill="none" stroke="#e2ddd5"/>';
+  }
+  // 轴 + 标签
+  for (let i = 0; i < n; i++) {
+    const a = i / n * Math.PI * 2 - Math.PI / 2;
+    const [ex, ey] = polar(cx, cy, R, a);
+    svg += '<line x1="' + cx + '" y1="' + cy + '" x2="' + ex + '" y2="' + ey + '" stroke="#e2ddd5"/>';
+    const [tx, ty] = polar(cx, cy, R + 22, a);
+    const label = indicators[i] ? indicators[i].name : '';
+    const val = indicators[i] ? indicators[i].value : 0;
+    svg += '<text x="' + tx + '" y="' + ty + '" text-anchor="middle" font-size="9.5" fill="#6b6560">' + label + '<tspan x="' + tx + '" dy="11" fill="#b8863a" font-weight="700">' + val + '</tspan></text>';
+  }
+  // 数据多边形
+  const pts = indicators.map((ind, i) => {
+    const a = i / n * Math.PI * 2 - Math.PI / 2;
+    const norm = Math.max(0, Math.min(100, ind.value)) / 100;
+    return polar(cx, cy, R * norm, a).map(v => v.toFixed(1)).join(',');
+  }).join(' ');
+  svg += '<polygon points="' + pts + '" fill="rgba(184,134,58,.28)" stroke="#b8863a" stroke-width="2"/>';
+  // 数据点
+  indicators.forEach((ind, i) => {
+    const a = i / n * Math.PI * 2 - Math.PI / 2;
+    const norm = Math.max(0, Math.min(100, ind.value)) / 100;
+    const [px, py] = polar(cx, cy, R * norm, a);
+    svg += '<circle cx="' + px + '" cy="' + py + '" r="3" fill="#b8863a"/>';
+  });
+  svg += '</svg>';
+  document.getElementById(elId).innerHTML = svg;
+}
+
+function drawSensory(elId, sensory) {
+  const entries = Object.entries(sensory || {}).filter(([, v]) => typeof v === 'number');
+  const max = Math.max(...entries.map(([, v]) => v), 1);
+  document.getElementById(elId).innerHTML = entries.length ? entries.map(([k, v]) =>
+    '<div class="belief-item"><span style="min-width:3em">' + k + '</span>' +
+    '<div style="flex:1;height:8px;background:var(--bg);border-radius:4px;overflow:hidden">' +
+    '<div style="width:' + (v / max * 100).toFixed(1) + '%;height:100%;background:var(--acc)"></div></div>' +
+    '<span class="conf">' + v.toFixed(1) + '</span></div>'
+  ).join('') : '<div style="font-size:.75rem;color:var(--text3)">未检测到感官描写</div>';
+}
+
+function drawDialoguePie(elId, pie) {
+  const segs = [
+    ['对话', pie.dialogue || 0, '#b8863a'],
+    ['叙述', pie.narration || 0, '#8a9a5b'],
+    ['内心独白', pie.inner_monologue || 0, '#c44a4a'],
+  ].filter(s => s[1] > 0);
+  if (!segs.length) { document.getElementById(elId).innerHTML = '<div style="font-size:.75rem;color:var(--text3)">无数据</div>'; return; }
+  const total = segs.reduce((a, s) => a + s[1], 0) || 1;
+  let x = 0;
+  document.getElementById(elId).innerHTML =
+    '<div style="display:flex;height:22px;border-radius:6px;overflow:hidden;margin-bottom:8px">' +
+    segs.map(([, v, c]) => {
+      const pct = v / total * 100;
+      const seg = '<div style="width:' + pct + '%;background:' + c + '" title="' + pct.toFixed(0) + '%"></div>';
+      return seg;
+    }).join('') + '</div>' +
+    '<div class="flex">' + segs.map(([k, v, c]) =>
+      '<span style="font-size:.75rem"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:' + c + ';margin-right:4px"></span>' +
+      k + ' ' + (v / total * 100).toFixed(0) + '%</span>'
+    ).join('') + '</div>';
+}
+
+// ─── #21 风格市场 ───
+async function loadMarketplace() {
+  try {
+    const list = await api('/style-profiles?sort=downloads');
+    const el = document.getElementById('mkt-list');
+    if (!list.length) { el.innerHTML = '<div style="font-size:.75rem;color:var(--text3)">市场暂无档案——发布第一个</div>'; return; }
+    el.innerHTML = list.slice(0, 10).map(p =>
+      '<div class="belief-item"><span>' + p.name + '</span>' +
+      (p.description ? '<span class="conf">' + p.description.slice(0, 40) + '</span>' : '') +
+      '<span class="conf">↓' + (p.download_count || 0) + '</span>' +
+      (PID ? '<button class="btn btn-sm" style="margin-left:auto" onclick="applyStyleProfile(' + p.id + ',\'' + (p.name || '').replace(/'/g, '') + '\')">应用</button>' : '') +
+      '</div>'
+    ).join('');
+  } catch (e) { /* 市场可选 */ }
+}
+
+async function publishStyleProfile() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  const name = $('mkt-publish-name').value.trim();
+  if (!name) { toast('请输入档案名', 'err'); return; }
+  try {
+    await api('/style-profiles', { project_id: PID, name, description: '', genre_tags: [] });
+    $('mkt-publish-name').value = '';
+    toast('已发布「' + name + '」到风格市场', 'ok');
+    loadMarketplace();
+  } catch (e) {
+    showError('发布失败: ' + e.message);
+  }
+}
+
+async function applyStyleProfile(profileId, profileName) {
+  try {
+    const d = await api('/project/' + PID + '/apply-style/' + profileId, {});
+    toast('已应用「' + profileName + '」(30%混合)', 'ok');
+  } catch (e) {
+    showError('应用失败: ' + e.message);
+  }
+}
+// ─── #21 END ───
+
+// ─── 蓝图 W2: 大纲面板 ───
+const POV_LABELS = {objective:'客观', main:'主角', impact:'影响', relationship:'关系'};
+const MICE_LABELS = {milieu:' milieu', idea:'idea', character:'character', event:'event'};
+const VALUE_BADGE = {positive:'<span style="color:var(--green)">⚡+</span>', negative:'<span style="color:var(--red)">⚡−</span>', neutral:''};
+
+async function generateOutline() {
+  const premise = $('ol-premise').value.trim() || $('idea-input').value.trim();
+  if (!premise) { toast('请输入前提', 'err'); return; }
+  if (busy) return;
+  busy = true;
+  setBusy($('btn-outline'), '生成中…');
+  $('ol-status').innerHTML = '<span class="spinner"></span> 递归分解：前提 → 幕 → 章 → 方法论标注…';
+  try {
+    const d = await api('/api/generate-outline', {
+      premise, template: $('ol-template').value,
+      target_chapters: parseInt($('ol-chapters').value) || 9,
+    });
+    let html = '';
+    for (const act of (d.acts||[])) {
+      html += '<div class="card"><h3>' + act.title + '</h3>' +
+        (act.description ? '<div style="font-size:.75rem;color:var(--text3);margin-bottom:6px">' + act.description + '</div>' : '');
+      html += (act.chapters||[]).map(c => {
+        const badges = [
+          VALUE_BADGE[c.story_value] || '',
+          c.story_charge ? '<span style="color:var(--amber)">⇄</span>' : '',
+          '<span class="tag">' + (POV_LABELS[c.primary_pov]||c.primary_pov) + '</span>',
+          c.mice_type ? '<span class="tag" style="background:#efe8f4;color:#6b5a8a">⛓ ' + c.mice_type + '</span>' : '',
+          c.climax_position ? '<span class="tag" style="background:#fdf0f0;color:var(--red)">▲ 高潮 ' + Math.round(c.climax_position*100) + '%</span>' : '',
+          c.methodology_source ? '<span class="tag" style="background:#f0f4ef;color:#4a8a5a">📖 ' + c.methodology_source + '</span>' : '',
+        ].filter(Boolean).join(' ');
+        return '<div class="belief-item"><span style="min-width:4em;font-family:var(--mono);color:var(--text3)">' + c.id.replace('ch_','') + '</span>' +
+          '<span>' + c.title + '</span>' +
+          (c.description ? '<span class="conf">' + c.description.slice(0, 40) + '</span>' : '') +
+          '<span style="margin-left:auto">' + badges + '</span></div>';
+      }).join('');
+      html += '</div>';
+    }
+    if ((d.mice_violations||[]).length) {
+      html += '<div class="card"><h3 style="color:var(--red)">⛓ MICE LIFO 违规 (' + d.mice_violations.length + ')</h3>' +
+        d.mice_violations.map(v => '<div class="gate gate-warn" style="font-size:.75rem">' + v.detail + '</div>').join('') + '</div>';
+    }
+    $('ol-result').innerHTML = html;
+    // 保存 outline_json 到当前项目（若有）
+    if (PID) { window._LAST_OUTLINE = d.outline_json; toast('大纲已生成，提交时可参考', 'ok'); }
+    clearError();
+  } catch (e) {
+    showError('大纲生成失败: ' + e.message);
+  } finally {
+    busy = false;
+    setBusy($('btn-outline'), '生成大纲');
+    $('ol-status').textContent = '';
+  }
+}
+
+async function inspectContext() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  try {
+    const d = await api('/api/context?project_id=' + PID + '&query=' + encodeURIComponent($('chapter-text').value.slice(-200)));
+    const card = $('ol-ctx-card');
+    card.style.display = '';
+    $('ol-ctx-layers').innerHTML = Object.entries(d.layers).map(([k, v]) =>
+      '<div class="belief-item"><span>' + k + '</span>' +
+      '<span class="conf">tokens ' + v.tokens + ' · ' + v.chars + ' 字</span>' +
+      (v.chars > 0 ? '<span style="color:var(--green)">✓</span>' : '<span style="color:var(--text3)">—</span>') +
+      '</div>'
+    ).join('') + '<div style="font-size:.72rem;color:var(--text3);margin-top:6px">合计约 ' + d.total_tokens + ' tokens</div>';
+  } catch (e) {
+    showError('上下文视察失败: ' + e.message);
+  }
+}
+
+// ─── 蓝图 W3: 建议点击插入光标位 ───
+function insertAtCursor(text) {
+  const ta = $('chapter-text');
+  const start = ta.selectionStart, end = ta.selectionEnd;
+  ta.value = ta.value.slice(0, start) + text + ta.value.slice(end);
+  ta.selectionStart = ta.selectionEnd = start + text.length;
+  ta.focus();
+}
+
+// ─── 产品化 W1: Ctrl+Enter AI 续写 + 自动保存 ───
+let _autoSaveTimer = null;
+let _lastSavedDraft = null;
+
+function initEditorShortcuts() {
+  const ta = $('chapter-text');
+  if (!ta) return;
+  ta.addEventListener('keydown', ev => {
+    if (ev.ctrlKey && ev.key === 'Enter') {
+      ev.preventDefault();
+      aiContinue();
+    }
+  });
+  // 自动保存草稿（debounce 2s）到 localStorage
+  ta.addEventListener('input', () => {
+    clearTimeout(_autoSaveTimer);
+    _autoSaveTimer = setTimeout(() => {
+      try {
+        const key = 'aesir_draft_' + (PID || 'global');
+        localStorage.setItem(key, ta.value);
+        _lastSavedDraft = ta.value;
+        $('submit-status').textContent = '草稿已自动保存 ' + new Date().toLocaleTimeString('zh-CN', {hour12:false});
+      } catch (e) { /* 存储不可用则跳过 */ }
+    }, 2000);
+  });
+  // 恢复上次草稿
+  try {
+    const key = 'aesir_draft_' + (PID || 'global');
+    const saved = localStorage.getItem(key);
+    if (saved && saved.length > 3 && !ta.value) {
+      ta.value = saved;
+      $('submit-status').textContent = '已恢复上次草稿';
+    }
+  } catch (e) { /* 忽略 */ }
+}
+
+async function aiContinue() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  const text = $('chapter-text').value.trim();
+  if (!text) { toast('先写一些内容再续写', 'err'); return; }
+  if (busy) return;
+  busy = true;
+  setBusy($('btn-generate'), '续写中…');
+  $('submit-status').innerHTML = '<span class="spinner"></span> AI 续写（多变体择优）…';
+  try {
+    const d = await api('/project/' + PID + '/ai-continue', {
+      project_id: PID, text: text.slice(-400), word_target: 300
+    });
+    // 插入续写结果到光标处
+    insertAtCursor(d.text);
+    toast('已续写 · 质量分 ' + d.score, 'ok');
+    clearError();
+  } catch (e) {
+    showError('续写失败: ' + e.message);
+  } finally {
+    busy = false;
+    setBusy($('btn-generate'), '✨ AI 生成');
+    $('submit-status').textContent = '';
+  }
+}
+
+// ─── 产品化 W1: 首次启动引导 ───
+function showOnboarding() {
+  try {
+    if (localStorage.getItem('aesir_onboarded')) return;
+  } catch (e) { return; }
+  const overlay = document.createElement('div');
+  overlay.id = 'onboarding';
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(26,24,22,.6);z-index:9999;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(2px)';
+  overlay.innerHTML =
+    '<div class="card" style="max-width:420px;margin:0 16px;text-align:left">' +
+    '<h3 style="font-size:1.05rem;margin-bottom:12px">✦ 三步开始写作</h3>' +
+    '<div style="font-size:.84rem;line-height:2">' +
+    '<p><b>①</b> 上方输入一句话想法，点「创建项目」</p>' +
+    '<p><b>②</b> 写正文，按 <code>Ctrl+Enter</code> 让 AI 续写</p>' +
+    '<p><b>③</b> 点「提交章节」查看 166 道门禁审计</p>' +
+    '</div>' +
+    '<div class="flex mt" style="justify-content:space-between;align-items:center">' +
+    '<span style="font-size:.7rem;color:var(--text3)">高级功能藏在下方各面板中</span>' +
+    '<button class="btn btn-p" onclick="dismissOnboarding()">开始 ✦</button>' +
+    '</div></div>';
+  document.body.appendChild(overlay);
+}
+
+function dismissOnboarding() {
+  try { localStorage.setItem('aesir_onboarded', '1'); } catch (e) {}
+  const o = document.getElementById('onboarding');
+  if (o) o.remove();
+}
+
+// ─── #18 世界构建 Wiki ───
+const WIKI_TYPE_LABELS = { location: '📍 地点', item: '🗡 物品', event: '⚡ 事件', other: '◌ 其他' };
+
+async function loadWiki() {
+  if (!PID) { $('wiki-groups').innerHTML = '<div style="font-size:.78rem;color:var(--text3)">请先创建项目</div>'; return; }
+  try {
+    const d = await api('/project/' + PID + '/wiki');
+    let html = '';
+    for (const [type, items] of Object.entries(d.groups || {})) {
+      if (!items.length) continue;
+      html += '<div class="card"><h3>' + (WIKI_TYPE_LABELS[type] || type) + ' (' + items.length + ')</h3>' +
+        items.map(e =>
+          '<div class="belief-item"><span>' + e.name + '</span>' +
+          (e.description ? '<span class="conf">' + e.description.slice(0, 50) + '</span>' : '') +
+          '<button class="btn btn-sm" style="margin-left:auto" onclick="deleteWikiElement(\'' + e.id + '\')">删</button>' +
+          '</div>'
+        ).join('') + '</div>';
+    }
+    $('wiki-groups').innerHTML = html || '<div style="font-size:.78rem;color:var(--text3)">空 Wiki——手动添加或从章节自动收获</div>';
+  } catch (e) {
+    showError('Wiki 加载失败: ' + e.message);
+  }
+}
+
+async function addWikiElement() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  const name = $('wiki-name').value.trim();
+  if (!name) { toast('请输入名称', 'err'); return; }
+  try {
+    await api('/project/' + PID + '/wiki', {
+      name, element_type: $('wiki-type').value, description: $('wiki-desc').value.trim()
+    });
+    $('wiki-name').value = ''; $('wiki-desc').value = '';
+    toast('已添加「' + name + '」', 'ok');
+    loadWiki();
+  } catch (e) {
+    showError('添加失败: ' + e.message);
+  }
+}
+
+async function deleteWikiElement(id) {
+  try {
+    const r = await fetch(API + '/project/' + PID + '/wiki/' + id, { method: 'DELETE' });
+    if (r.ok) { toast('已删除', 'ok'); loadWiki(); }
+    else showError('删除失败: HTTP ' + r.status);
+  } catch (e) {
+    showError('删除失败: ' + e.message);
+  }
+}
+
+async function harvestWiki() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  if (busy) return;
+  busy = true;
+  setBusy($('btn-harvest'), '收获中…');
+  try {
+    const d = await api('/project/' + PID + '/wiki/harvest', {});
+    toast('自动收获 ' + (d.total_new || 0) + ' 个世界元素', 'ok');
+    loadWiki();
+  } catch (e) {
+    showError('收获失败: ' + e.message);
+  } finally {
+    busy = false;
+    setBusy($('btn-harvest'), '⚡ 从章节自动收获');
+  }
+}
+// ─── #18 END ───
+
+// ─── #17 EPUB 导出 ───
+async function exportEpub() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  try {
+    window.open(API + '/project/' + PID + '/export/epub', '_blank');
+    toast('正在导出 EPUB', 'ok');
+  } catch (e) {
+    showError('导出失败: ' + e.message);
+  }
+}
+
+// ─── #15 假设推演 ───
+let SIM_BELIEFS = [];
+
+function addSimBelief() {
+  const c = $('sim-char').value.trim(), p = $('sim-prop').value.trim();
+  if (!c || !p) { toast('角色名与信念命题必填', 'err'); return; }
+  SIM_BELIEFS.push({ character: c, proposition: p, value: $('sim-val').value === 'true' });
+  renderSimBeliefs();
+  $('sim-prop').value = '';
+}
+
+function removeSimBelief(i) { SIM_BELIEFS.splice(i, 1); renderSimBeliefs(); }
+
+function renderSimBeliefs() {
+  $('sim-belief-list').innerHTML = SIM_BELIEFS.map((b, i) =>
+    '<span class="tension-chip">' + b.character + ' 相信「' + b.proposition + '」' + (b.value ? '✓' : '✗') +
+    ' <a href="javascript:void(0)" onclick="removeSimBelief(' + i + ')" style="color:var(--red)">×</a></span>'
+  ).join('');
+}
+
+async function runSimulation() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  const hyp = $('sim-hypothesis').value.trim();
+  if (!hyp) { toast('请输入假设', 'err'); return; }
+  if (busy) return;
+  busy = true;
+  setBusy($('btn-simulate'), '推演中…');
+  $('sim-status').innerHTML = '<span class="spinner"></span> 克隆状态 → 应用信念 → 生成分支…';
+  try {
+    const d = await api('/project/' + PID + '/simulate', {
+      hypothesis: hyp, belief_changes: SIM_BELIEFS, branch_count: 3
+    });
+    let html = '';
+    if ((d.tensions || []).length) {
+      html += '<div class="card"><h3>⚡ 新增张力 (' + d.tensions.length + ')</h3>' +
+        d.tensions.map(t => '<span class="tension-chip">' + (t.description || '').slice(0, 45) +
+        (t.intensity != null ? ' (' + Number(t.intensity).toFixed(1) + ')' : '') + '</span>').join('') + '</div>';
+    }
+    html += '<div class="grid">' + (d.branches || []).map((b, i) =>
+      '<div class="card" style="margin:0"><h3>' + (i + 1) + '. ' + (b.title || '分支') + '</h3>' +
+      '<div style="font-size:.78rem;margin-bottom:6px">' + (b.summary || '') + '</div>' +
+      (b.key_event ? '<div style="font-size:.72rem;color:var(--acc)">⚡ ' + b.key_event + '</div>' : '') +
+      '</div>'
+    ).join('') + '</div>';
+    html += '<div style="font-size:.7rem;color:var(--text3);margin-top:8px">推演不落盘——确认方向后请手动同步到主线信念</div>';
+    $('sim-result').innerHTML = html;
+    clearError();
+    toast('推演完成 · ' + (d.branches || []).length + ' 条分支', 'ok');
+  } catch (e) {
+    showError('推演失败: ' + e.message);
+  } finally {
+    busy = false;
+    setBusy($('btn-simulate'), '▶ 运行推演');
+    $('sim-status').textContent = '';
+  }
+}
+
+// ─── #16 碎片发散 ───
+async function runDiverge() {
+  const frags = $('div-fragments').value.split('\n').map(s => s.trim()).filter(Boolean);
+  if (frags.length < 2) { toast('至少 2 个碎片（每行一个）', 'err'); return; }
+  if (busy) return;
+  busy = true;
+  setBusy($('btn-diverge'), '发散中…');
+  $('div-status').innerHTML = '<span class="spinner"></span> 织入 ' + frags.length + ' 个碎片…';
+  try {
+    const d = await api('/diverge', { fragments: frags, count: 5 });
+    $('div-result').innerHTML = (d.worldlines || []).map((wl, i) =>
+      '<div class="card"><h3>✧ 世界线 ' + (i + 1) + ' · ' + (wl.genre || '') + ' / ' + (wl.structure || '') + '</h3>' +
+      (wl.conflict_core ? '<div style="font-size:.75rem;color:var(--acc);margin-bottom:6px">核心冲突：' + wl.conflict_core + '</div>' : '') +
+      '<ol style="font-size:.78rem;padding-left:18px;margin-bottom:8px">' +
+      (wl.beats || []).map(b => '<li>' + b + '</li>').join('') + '</ol>' +
+      (wl.opening ? '<div style="font-size:.78rem;color:var(--text2);border-left:3px solid var(--acc);padding-left:10px">' + wl.opening.slice(0, 150) + '</div>' : '') +
+      '</div>'
+    ).join('');
+    clearError();
+    toast('已生成 ' + (d.worldlines || []).length + ' 条世界线', 'ok');
+  } catch (e) {
+    showError('发散失败: ' + e.message);
+  } finally {
+    busy = false;
+    setBusy($('btn-diverge'), '✧ 生成 5 条世界线');
+    $('div-status').textContent = '';
+  }
+}
+// ─── #15/#16 END ───
+
+// ─── 门禁分级显示 END ───
+
+// ─── 续写建议 ───
+function renderSuggestions(sug) {
+  const list = sug.suggestions || [];
+  if (list.length === 0) {
+    $('sug-list').innerHTML = '<div style="font-size:.78rem;color:var(--text3);text-align:center;padding:12px">提交章节后这里会给出续写建议</div>';
+    return;
+  }
+  $('sug-list').innerHTML = list.map(s => {
+    const m = s.methodology;
+    const badge = m
+      ? '<span class="tag" style="background:#efe8f4;color:#6b5a8a" title="' + (m.source || '') + ' — ' + (m.description || '') + '">📖 ' + (m.name || '') + '</span>'
+      : '';
+    return '<div class="suggestion" onclick="insertAtCursor(\'' + (s.text || '').replace(/'/g, "\\'").slice(0, 60) + '\')" title="点击插入到光标位置">' +
+      '<span class="tag">' + (s.type || '') + '</span>' + badge + (s.text || '') +
+      (s.source ? '<div style="font-size:.65rem;color:var(--text3);margin-top:2px">来源: ' + s.source + ' · 点击插入</div>' : '') +
+      '</div>';
+  }).join('');
+  const stats = $('sug-stats');
+  if (stats) stats.textContent = '趋势: ' + (sug.transportation_trend || '') + ' · ' + (sug.character_count || 0) + ' 角色 · ' + (sug.tension_count || 0) + ' 张力';
+}
+
+// ─── 最近项目已由灵感视图的 loadRecentProjects 覆盖 ───
+
+// ─── LLM 生成章节 ───
+async function generateChapter() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  if (busy) return;
+  const idea = $('idea-input').value.trim() || '写一段关于错过的故事';
+  busy = true;
+  const btn = $('btn-generate');
+  setBusy(btn, '生成中…');
+  $('submit-status').innerHTML = '<span class="spinner"></span> AI 正在创作…';
+  try {
+    const d = await api('/project/' + PID + '/generate-chapter', { prompt: idea, word_target: 300 });
+    $('chapter-text').value = d.text;
+    clearError();
+    toast('已生成，可编辑后提交', 'ok');
+  } catch (e) {
+    showError('生成失败: ' + e.message);
+  } finally {
+    busy = false;
+    setBusy(btn, '✨ AI 生成');
+    $('submit-status').textContent = '';
+  }
+}
+
+// ─── 章节列表 ───
+async function loadChapters() {
+  if (!PID) {
+    $('chapters-empty').className = 'empty-state';
+    $('chapters-list').className = 'hide';
+    return;
+  }
+  try {
+    const list = await api('/project/' + PID + '/chapters');
+    if (!list.length) {
+      $('chapters-empty').className = 'empty-state';
+      $('chapters-list').className = 'hide';
+      return;
+    }
+    $('chapters-empty').className = 'empty-state hide';
+    $('chapters-list').className = '';
+    $('chapters-list').innerHTML = '<table style="width:100%;font-size:.82rem;border-collapse:collapse">' +
+      '<tr style="color:var(--text3)"><th style="text-align:left;padding:6px">章次</th><th style="text-align:left;padding:6px">标题</th><th style="padding:6px">字数</th><th style="padding:6px">评分</th><th style="padding:6px">操作</th></tr>' +
+      list.map(ch =>
+        '<tr style="border-top:1px solid var(--border)">' +
+        '<td style="padding:6px">' + ch.number + '</td>' +
+        '<td style="padding:6px">' + (ch.title || '').slice(0, 30) + '</td>' +
+        '<td style="padding:6px;text-align:center">' + ch.word_count + '</td>' +
+        '<td style="padding:6px;text-align:center">' + ch.score + '</td>' +
+        '<td style="padding:6px;text-align:center"><button class="btn btn-sm" onclick="viewChapter(' + ch.number + ')">查看</button> ' +
+        '<button class="btn btn-sm" onclick="deleteChapter(' + ch.number + ')">删除</button></td>' +
+        '</tr>'
+      ).join('') + '</table>';
+  } catch (e) {
+    showError('章节列表加载失败: ' + e.message);
+  }
+}
+
+async function viewChapter(num) {
+  try {
+    const d = await api('/project/' + PID + '/chapters/' + num);
+    $('chapter-text').value = d.text;
+    switchTab('writing');
+    toast('已载入第' + num + '章到编辑器', 'ok');
+  } catch (e) {
+    showError('载入章节失败: ' + e.message);
+  }
+}
+
+async function deleteChapter(num) {
+  if (!confirm('删除第' + num + '章？此操作不可恢复。')) return;
+  try {
+    const r = await fetch(API + '/project/' + PID + '/chapters/' + num, { method: 'DELETE' });
+    if (r.ok) { toast('已删除第' + num + '章', 'ok'); loadChapters(); await refresh(); }
+    else showError('删除失败: HTTP ' + r.status);
+  } catch (e) {
+    showError('删除失败: ' + e.message);
+  }
+}
+
+// ─── 导出 Markdown ───
+async function exportMarkdown() {
+  if (!PID) { toast('请先创建项目', 'err'); return; }
+  try {
+    window.open(API + '/project/' + PID + '/export/md', '_blank');
+    toast('正在导出 Markdown', 'ok');
+  } catch (e) {
+    showError('导出失败: ' + e.message);
+  }
+}
+
+// ─── 载入第1章样本 ───
+async function loadSampleChapter1() {
+  if (!PID) {
+    toast('先在灵感页创建项目', 'info');
+    switchView('inspiration');
+    return;
+  }
+  if (busy) return;
+  busy = true;
+  try {
+    const r = await fetch(API + '/chapter-1-sample');
+    if (r.ok) {
+      $('chapter-text').value = await r.text();
+      toast('✅ 已载入第1章（约800字）', 'ok');
+      clearError();
+    } else {
+      throw new Error('HTTP ' + r.status);
+    }
+  } catch (e) {
+    showError('载入样本失败: ' + e.message);
+  } finally {
+    busy = false;
+  }
+}
+
+// ─── 启动 ───
+checkHealth();
+loadRecentProjects();
+initEditorShortcuts();
+showOnboarding();
+setInterval(checkHealth, 30000);
+</script>
+</body>
+</html>

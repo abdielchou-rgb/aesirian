@@ -1,0 +1,47 @@
+{
+  "appId": "com.aesirian.ide",
+  "productName": "Æsirian",
+  "directories": {
+    "output": "../release-v2"
+  },
+  "files": [
+    "dist/**/*",
+    "public/electron/**/*"
+  ],
+  "extraResources": [
+    {
+      "from": "../bridge",
+      "to": "backend/bridge",
+      "filter": ["**/*.py", "**/*.pyc", "!**/__pycache__/**"]
+    },
+    {
+      "from": "../core",
+      "to": "backend/core",
+      "filter": ["**/*.py", "**/*.pyc", "**/*.md", "!**/__pycache__/**"]
+    },
+    {
+      "from": "../plugins",
+      "to": "backend/plugins",
+      "filter": ["**/*"]
+    },
+    {
+      "from": "../requirements.txt",
+      "to": "backend/requirements.txt"
+    }
+  ],
+  "win": {
+    "target": ["nsis"],
+    "icon": "public/app.ico",
+    "signAndEditExecutable": false,
+    "forceCodeSigning": false
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true
+  },
+  "mac": {
+    "target": ["dmg"],
+    "icon": "public/icon.png"
+  }
+}

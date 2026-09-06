@@ -1,0 +1,8 @@
+{
+  "name": "exclamation-density",
+  "version": "1.0.0",
+  "type": "analyzer",
+  "entry_point": "analyzer:ExclamationAnalyzer",
+  "permissions": ["text_read"],
+  "description": "感叹号/问号密度分析（情绪强度指标）"
+}

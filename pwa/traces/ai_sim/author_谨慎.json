@@ -1,0 +1,16 @@
+[
+ {"op":"demo_luoyang","ts":"2026-09-06T09:41:00.000Z","detail":{"ok":true,"ms":486,"args":{"cards":["biographies","framework","chapters"],"sample":true}}},
+ {"op":"demo_loaded","ts":"2026-09-06T09:41:00.860Z","detail":{"bios":2,"sample_diffs":3}},
+ {"op":"transportation","ts":"2026-09-06T09:41:01.250Z","detail":{"score":42.3,"chars":841}},
+ {"op":"edit_four_cards","ts":"2026-09-06T09:41:27.950Z","detail":{"ok":true,"ms":348,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"none"},"decisions":[{"id":"e4d5469ebf47","action":"reject"}]}}},
+ {"op":"rule","ts":"2026-09-06T09:41:28.300Z","detail":{"diff_id":"e4d5469ebf47","action":"reject"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T09:42:01.150Z","detail":{"ok":true,"ms":351,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"none"},"decisions":[{"id":"0ac5a7aadbfc","action":"reject"}]}}},
+ {"op":"rule","ts":"2026-09-06T09:42:01.500Z","detail":{"diff_id":"0ac5a7aadbfc","action":"reject"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T09:42:33.360Z","detail":{"ok":true,"ms":344,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"none"},"decisions":[{"id":"f925b29f4a17","action":"accept"}]}}},
+ {"op":"rule","ts":"2026-09-06T09:42:33.700Z","detail":{"diff_id":"f925b29f4a17","action":"accept"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T09:42:47.100Z","detail":{"ok":true,"ms":403,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"want"}}}},
+ {"op":"edit_four_cards","ts":"2026-09-06T09:43:13.800Z","detail":{"ok":true,"ms":391,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"none"},"decisions":[{"id":"91c2d4f0b8e7","action":"reject"}]}}},
+ {"op":"rule","ts":"2026-09-06T09:43:14.200Z","detail":{"diff_id":"91c2d4f0b8e7","action":"reject"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T09:43:30.500Z","detail":{"ok":true,"ms":412,"args":{"project":"洛阳星港","edit":{"card":"framework","field":"framework[4].goal"}}}},
+ {"op":"transportation","ts":"2026-09-06T09:43:46.000Z","detail":{"score":39.1,"chars":908}}
+]

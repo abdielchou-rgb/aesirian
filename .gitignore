@@ -1,0 +1,84 @@
+# Æsirian .gitignore — 0.2.0 公开仓卫生基线
+# 说明：发布口径 = 源码仓（clone 后 pip install -r requirements.txt + pytest）。
+# 大体积产物 / 本地数据 / 内部文档一律不入库（详见 docs 决策记录 D2/D5/D6）。
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+.venv*/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+*.egg-info/
+build/
+dist/
+
+# ---- Node / Electron ----
+node_modules/
+electron_ide/node_modules/
+electron_ide/dist/
+electron_ide/release/
+npm-debug.log*
+
+# ---- uv / 本地 lockfile（CI 用 requirements.txt 安装；uv 用户在本地重新生成）----
+uv.lock
+
+# ---- 发布产物（大文件绝不入库）----
+release/
+release-v2/
+*.exe
+*.blockmap
+builder-debug.yml
+*.dmg
+*.AppImage
+
+# ---- 数据库与本地数据（含《洛阳星港》样例正文，不具可移植性）----
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+test_aesirian*
+aesirian.db*
+output/
+output/exports/
+output/screenshots/
+
+# ---- 日志 / 内部过程残留 ----
+*.log
+*.err
+*.out
+err.txt
+import_check.*
+probe*.log
+collect*.log
+pytest*.log
+uv_sync*.log
+m16_*.out
+m17_*.out
+temp/
+.scratch/
+
+# ---- 备份 / 临时文件 ----
+*.bak
+*.orig
+*.backup*
+*.broken
+*.tmp
+
+# ---- 环境变量 ----
+.env
+.env.*
+!.env.example
+
+# ---- 内部文档（不公开；含内部决策/审计/水印文档）----
+docs/internal/
+
+# ---- 编辑器 / OS ----
+.idea/
+.vscode/
+*.swp
+Thumbs.db
+.DS_Store

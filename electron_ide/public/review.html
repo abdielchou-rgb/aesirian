@@ -1,0 +1,445 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Æsirian · 四视图审查页</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel2: #1d212b;
+    --line: #2a2f3a; --text: #d7dce4; --dim: #8a93a3;
+    --acc: #4f8cff; --green: #3ecf8e; --red: #ff5d5d; --yellow: #f5c451;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text);
+         font: 13px/1.55 "Segoe UI", "Microsoft YaHei", sans-serif; }
+  header { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
+           border-bottom: 1px solid var(--line); background: var(--panel); flex-wrap: wrap; }
+  header h1 { font-size: 15px; font-weight: 600; margin-right: 8px; }
+  header input, header select, header button, .btn {
+    background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 10px; font-size: 12px; cursor: pointer; }
+  header input:focus, header select:focus { outline: 1px solid var(--acc); }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+  .dot.synced { background: var(--green); }
+  .dot.dirty { background: var(--yellow); }
+  .dot.conflict { background: var(--red); }
+  .dot.locked { background: var(--dim); }
+  .mode-tabs { display: inline-flex; gap: 2px; }
+  .mode-tabs .tab { border-radius: 6px; }
+  .mode-tabs .tab.active { background: var(--acc); color: #fff; border-color: var(--acc); }
+  #summary-bar { min-height: 24px; padding: 6px 16px; background: #141823;
+                 border-bottom: 1px solid var(--line); color: var(--dim); font-size: 12px; }
+  #summary-bar.ok { color: var(--green); }
+  #summary-bar.err { color: var(--red); }
+  main { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; padding: 12px; }
+  @media (max-width: 1100px) { main { grid-template-columns: 1fr; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+          display: flex; flex-direction: column; min-height: 320px; overflow: hidden; }
+  .card.conflict-card { border-color: var(--red); }
+  .card-head { display: flex; align-items: center; gap: 8px; padding: 8px 12px;
+               border-bottom: 1px solid var(--line); }
+  .card-head .name { font-weight: 600; font-size: 13px; }
+  .card-head .spacer { flex: 1; }
+  .card-head button { font-size: 11px; padding: 2px 8px; }
+  .card-body { padding: 10px 12px; overflow: auto; flex: 1; }
+  textarea { width: 100%; height: 100%; min-height: 240px; resize: vertical;
+             background: var(--panel2); color: var(--text); border: 1px solid var(--line);
+             border-radius: 6px; padding: 8px; font: 13px/1.6 Consolas, monospace; }
+  .item { background: var(--panel2); border: 1px solid var(--line); border-radius: 8px;
+          padding: 8px 10px; margin-bottom: 8px; }
+  .item .row { display: flex; gap: 6px; align-items: center; margin-bottom: 4px; flex-wrap: wrap; }
+  .item .row:last-child { margin-bottom: 0; }
+  .item input[type=text], .item textarea.small { background: #12151c; border: 1px solid var(--line);
+    color: var(--text); border-radius: 5px; padding: 3px 6px; font-size: 12px; flex: 1; min-width: 80px; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 10px; background: #232a38; color: var(--dim); }
+  .tag.role { background: #232a38; color: #9fb4ff; }
+  .mini-btn { font-size: 11px; padding: 1px 6px !important; }
+  .placeholder { color: var(--dim); text-align: center; padding: 24px 0; }
+  .diff-list { margin-top: 6px; font-size: 12px; }
+  .diff-list .add { color: var(--green); }
+  .diff-list .del { color: var(--red); text-decoration: line-through; }
+  #toast { position: fixed; right: 16px; bottom: 16px; max-width: 380px; z-index: 99; }
+  .toast-item { background: #222939; border: 1px solid var(--line); border-left: 3px solid var(--acc);
+                border-radius: 8px; padding: 8px 12px; margin-top: 8px; box-shadow: 0 4px 16px #0008; }
+  .toast-item.err { border-left-color: var(--red); }
+  .toast-item.ok { border-left-color: var(--green); }
+  .toast-item .t-actions { margin-top: 6px; display: flex; gap: 6px; justify-content: flex-end; }
+  .toast-item .t-reason { color: var(--dim); font-size: 11px; margin-top: 4px; }
+  .action-badge { display: inline-block; font-size: 11px; border-radius: 4px; padding: 0 5px; margin-right: 4px; }
+  .action-badge.update { background: #16324f; color: #7cb6ff; }
+  .action-badge.rewrite { background: #3a2a16; color: #ffc46b; }
+  .action-badge.adjust { background: #20381f; color: #8fe0a0; }
+  .card-head .lock-btn { font-size: 11px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Æsirian · 四视图审查页</h1>
+  <input id="projectId" value="project_123" placeholder="项目 ID" style="width:150px">
+  <input id="chapter" type="number" value="1" min="1" style="width:70px" title="当前章号">
+  <div class="mode-tabs" id="modeTabs">
+    <button class="tab" data-mode="realtime">实时同步</button>
+    <button class="tab" data-mode="manual">手动</button>
+  </div>
+  <button id="btnLoad" class="btn" style="margin-left:auto">加载审查会话</button>
+  <button id="btnRefresh" class="btn">刷新</button>
+</header>
+<div id="summary-bar">加载项目后即可开始四视图双向审查。</div>
+<main id="main"></main>
+<div id="toast"></div>
+
+<script>
+const VIEWS = ["draft", "framework", "chapters", "characters"];
+const VIEW_NAMES = { draft: "试样故事", framework: "故事框架", chapters: "章节规划", characters: "人物档案" };
+const API_BASE = (location.protocol.startsWith("http") ? "" : "http://127.0.0.1:8765");
+let state = null;
+let syncTimer = null;
+let conflictSyncId = null;
+const els = {};
+
+function $(id) { return document.getElementById(id); }
+
+function fmt(s, max) { s = String(s ?? ""); return s.length > (max || 90) ? s.slice(0, max) + "…" : s; }
+
+function toast(msg, kind, actions) {
+  const box = $("toast");
+  const div = document.createElement("div");
+  div.className = "toast-item" + (kind ? " " + kind : "");
+  const reason = (actions && actions.reason) ? `<div class="t-reason">${actions.reason}</div>` : "";
+  const btns = (actions && actions.buttons && actions.buttons.length)
+    ? `<div class="t-actions">${actions.buttons.map(b => `<button class="btn" data-i="${b.i}">${b.label}</button>`).join("")}</div>` : "";
+  div.innerHTML = `<div>${msg}</div>${reason}${btns}`;
+  box.appendChild(div);
+  if (actions && actions.buttons) {
+    div.querySelectorAll("button").forEach(btn => {
+      btn.onclick = () => { actions.buttons[+btn.dataset.i].fn(div); };
+    });
+  }
+  setTimeout(() => { div.remove(); }, (actions && actions.keep) ? 0 : 6000);
+}
+
+function summary(text, ok) {
+  const bar = $("summary-bar");
+  bar.className = ok ? "ok" : (ok === false ? "err" : "");
+  bar.textContent = text;
+}
+
+async function api(path, method, body) {
+  const opt = { method: method || "GET", headers: {} };
+  if (body !== undefined) {
+    opt.headers["Content-Type"] = "application/json";
+    opt.body = JSON.stringify(body);
+  }
+  const resp = await fetch(API_BASE + path, opt);
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) {
+    const err = new Error(data.detail || data.message || `HTTP ${resp.status}`);
+    err.status = resp.status; err.data = data;
+    throw err;
+  }
+  return data;
+}
+
+// ─────────── 状态与渲染 ───────────
+
+function projectId() { return $("projectId").value.trim() || "project_123"; }
+function chapterNo() { return parseInt($("chapter").value, 10) || 1; }
+function currentUrl() { return `/api/project/${encodeURIComponent(projectId())}/review?chapter=${chapterNo()}`; }
+
+async function loadState() {
+  try {
+    state = await api(currentUrl());
+    state.syncMode = state.syncMode || "realtime";
+    state.locks = state.locks || {};
+    renderModeTabs();
+    renderAll();
+    summary("审查会话已加载。编辑任一视图内容后自动同步，AI 联动以提案形式浮出，接受后才落地。", true);
+  } catch (e) {
+    summary("加载失败：" + e.message, false);
+    console.error(e);
+  }
+}
+
+function renderModeTabs() {
+  $("modeTabs").querySelectorAll(".tab").forEach(t => {
+    t.classList.toggle("active", t.dataset.mode === state.syncMode);
+  });
+}
+
+function viewStatusClass(view) {
+  if (state.locks[view]) return "locked";
+  return (state.sync_status && state.sync_status[view]) === "conflict" ? "conflict"
+    : (state.sync_status && state.sync_status[view]) === "dirty" ? "dirty" : "synced";
+}
+
+function renderAll() {
+  const main = $("main");
+  main.innerHTML = "";
+  VIEWS.forEach(v => main.appendChild(buildCard(v)));
+  // 渲染冲突提示（若有挂起变更且 sync_status 冲突）
+  if (state.pending_changes && Object.keys(state.pending_changes).length) {
+    summary("存在待裁决冲突：请在浮出提案中选择「接受」或「拒绝」。", false);
+  }
+}
+
+function buildCard(view) {
+  const card = document.createElement("div");
+  card.className = "card" + ((state.sync_status && state.sync_status[view]) === "conflict" ? " conflict-card" : "");
+  card.dataset.view = view;
+  const head = document.createElement("div");
+  head.className = "card-head";
+  head.innerHTML = `<span class="dot ${viewStatusClass(view)}"></span>
+    <span class="name">${VIEW_NAMES[view]}</span>
+    <span class="spacer"></span>
+    <button class="lock-btn" data-view="${view}">${state.locks[view] ? "🔒 锁定中" : "锁定"}</button>
+    <button class="sync-btn" data-view="${view}" title="强制同步该视图">同步</button>`;
+  const body = document.createElement("div");
+  body.className = "card-body";
+  if (view === "draft") body.appendChild(renderDraftBody());
+  else if (view === "framework") body.appendChild(renderFrameworkBody());
+  else if (view === "chapters") body.appendChild(renderChaptersBody());
+  else if (view === "characters") body.appendChild(renderCharactersBody());
+  card.appendChild(head); card.appendChild(body);
+
+  head.querySelector(".lock-btn").onclick = () => toggleLock(view, card);
+  head.querySelector(".sync-btn").onclick = () => manualSync(view);
+  return card;
+}
+
+function renderDraftBody() {
+  const box = document.createElement("div");
+  box.style.cssText = "display:flex;flex-direction:column;height:100%;";
+  const info = document.createElement("div");
+  info.innerHTML = `<span class="tag">版本 v${state.draft.version || 1}</span>
+    <span class="tag">字数 ${(state.draft.content || "").length}</span>`;
+  info.style.cssText = "margin-bottom:6px;display:flex;gap:6px;";
+  const ta = document.createElement("textarea");
+  ta.value = state.draft.content || "";
+  ta.placeholder = "在此粘贴/编辑试样故事正文……";
+  ta.oninput = () => {
+    if (state.syncMode === "realtime") scheduleSync("draft", { content: ta.value });
+    else markDirty("draft");
+  };
+  box.appendChild(info); box.appendChild(ta);
+  return box;
+}
+
+function renderFrameworkBody() {
+  const wrap = document.createElement("div");
+  const beats = state.framework.beats || [];
+  if (!beats.length) {
+    const ph = document.createElement("div");
+    ph.className = "placeholder";
+    ph.textContent = "暂无节拍。编辑正文后同步，将自动推断框架节拍。";
+    wrap.appendChild(ph);
+    return wrap;
+  }
+  beats.forEach((b, i) => {
+    const item = document.createElement("div");
+    item.className = "item";
+    const actName = (state.framework.acts || []).find(a => a.id === b.actId)?.name || b.actId || "";
+    item.innerHTML = `<div class="row"><span class="tag">#${i + 1}</span>
+      <input type="text" value="${esc(b.name)}" data-field="name" style="font-weight:600">
+      <span class="tag">${esc(actName)}</span><span class="tag role">${esc(b.charge || "none")}</span></div>
+      <div class="row"><input type="text" value="${esc(b.description || "")}" data-field="description"></div>`;
+    item.querySelectorAll("input").forEach(inp => {
+      inp.onchange = () => {
+        b[inp.dataset.field] = inp.value;
+        if (state.syncMode === "realtime") scheduleSync("framework", { ...state.framework });
+        else markDirty("framework");
+      };
+    });
+    wrap.appendChild(item);
+  });
+  return wrap;
+}
+
+function renderChaptersBody() {
+  const wrap = document.createElement("div");
+  const list = state.chapters || [];
+  if (!list.length) {
+    const ph = document.createElement("div");
+    ph.className = "placeholder";
+    ph.textContent = "暂无章节规划。同步正文后将自动生成章节卡片。";
+    wrap.appendChild(ph);
+    return wrap;
+  }
+  list.forEach(ch => {
+    const item = document.createElement("div");
+    item.className = "item";
+    item.innerHTML = `<div class="row"><span class="tag">第 ${ch.number} 章</span>
+      <input type="text" value="${esc(ch.title)}" data-field="title">
+      <span class="tag">${esc(ch.status || "writing")}</span></div>
+      <div class="row"><span class="tag">字数 ${ch.wordCount ?? 0}</span>
+      <input type="text" value="${esc(ch.summary || "")}" data-field="summary" placeholder="章节摘要"></div>`;
+    item.querySelectorAll("input").forEach(inp => {
+      inp.onchange = () => {
+        ch[inp.dataset.field] = inp.value;
+        if (state.syncMode === "realtime") scheduleSync("chapters", state.chapters);
+        else markDirty("chapters");
+      };
+    });
+    wrap.appendChild(item);
+  });
+  return wrap;
+}
+
+function renderCharactersBody() {
+  const wrap = document.createElement("div");
+  const list = state.characters || [];
+  if (!list.length) {
+    const ph = document.createElement("div");
+    ph.className = "placeholder";
+    ph.textContent = "暂无人物。同步正文后将自动识别出场人物。";
+    wrap.appendChild(ph);
+    return wrap;
+  }
+  list.forEach(ch => {
+    const item = document.createElement("div");
+    item.className = "item";
+    const goals = (ch.goals || []).join("、") || "";
+    const beliefs = (ch.beliefs || []).join("；") || "";
+    item.innerHTML = `<div class="row"><span class="tag role">${esc(ch.role || "?")}</span>
+      <input type="text" value="${esc(ch.name)}" data-field="name" style="font-weight:600">
+      <span class="tag">登场：第 ${ch.firstAppearance ?? "?"} 章</span></div>
+      <div class="row"><label style="color:var(--dim);width:34px">目标</label>
+      <input type="text" value="${esc(goals)}" data-field="goals" placeholder="用顿号分隔多个目标"></div>
+      <div class="row"><label style="color:var(--dim);width:34px">信念</label>
+      <input type="text" value="${esc(beliefs)}" data-field="beliefs" placeholder="用分号分隔多条信念"></div>`;
+    item.querySelectorAll("input").forEach(inp => {
+      inp.onchange = () => {
+        if (inp.dataset.field === "goals") ch.goals = inp.value.split(/[、，,]/).map(s => s.trim()).filter(Boolean);
+        else if (inp.dataset.field === "beliefs") ch.beliefs = inp.value.split(/[；;]/).map(s => s.trim()).filter(Boolean);
+        else ch[inp.dataset.field] = inp.value;
+        if (state.syncMode === "realtime") scheduleSync("characters", state.characters);
+        else markDirty("characters");
+      };
+    });
+    wrap.appendChild(item);
+  });
+  return wrap;
+}
+
+function esc(s) {
+  return String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function markDirty(view) {
+  const st = { ...(state.sync_status || {}) };
+  st[view] = "dirty";
+  state.sync_status = st;
+  renderAll();
+}
+
+// ─────────── 同步与裁决 ───────────
+
+function scheduleSync(view, content) {
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(() => manualSync(view, content), 500);
+}
+
+async function manualSync(view, contentOverride) {
+  const content = contentOverride !== undefined ? contentOverride : currentViewContent(view);
+  if (view === "draft") {
+    state.draft = { ...state.draft, content: content.content || "", version: (state.draft.version || 1) + 1 };
+  }
+  try {
+    summary(`正在从「${VIEW_NAMES[view]}」发起同步……`);
+    const data = await api(`/api/project/${encodeURIComponent(projectId())}/sync`, "POST", {
+      source: view, content, mode: state.syncMode === "manual" ? "realtime" : state.syncMode,
+      options: { target_views: [], force: false },
+    });
+    conflictSyncId = data.sync_id || conflictSyncId;
+    if (data.status === "conflict") {
+      state.pending_changes = data.changes || {};
+      if (data.conflicts) {
+        data.conflicts.forEach(c => {
+          const st = { ...(state.sync_status || {}) };
+          st[c.target_view] = "conflict";
+          state.sync_status = st;
+        });
+      }
+      renderAll();
+      toast("检测到同步冲突：" + (data.conflicts || []).map(c => c.message).join("；"),
+        "err", { reason: data.summary, keep: 1, buttons: [
+          { label: "接受全部", i: 0, fn: div => resolveConflicts("accept", div) },
+          { label: "拒绝全部", i: 1, fn: div => resolveConflicts("reject", div) },
+          { label: "稍后处理", i: 2, fn: div => div.remove() },
+        ]});
+      return;
+    }
+    // completed：后端已落地
+    state.pending_changes = {};
+    const st = { draft: "synced", framework: "synced", chapters: "synced", characters: "synced" };
+    state.sync_status = st;
+    // 同步后刷新 server 返回的最新状态（framework/chapters/characters 可能被改写）
+    const fresh = await api(currentUrl());
+    state = { ...state, ...fresh };
+    state.pending_changes = {};
+    renderAll();
+    summary("同步完成：" + (data.summary || "无实质变化"), true);
+  } catch (e) {
+    summary("同步失败：" + e.message, false);
+    console.error(e);
+  }
+}
+
+function currentViewContent(view) {
+  if (view === "draft") return { content: state.draft.content || "" };
+  if (view === "framework") return { ...state.framework };
+  if (view === "chapters") return state.chapters;
+  if (view === "characters") return state.characters;
+  return {};
+}
+
+async function resolveConflicts(action, toastDiv) {
+  if (!conflictSyncId) { if (toastDiv) toastDiv.remove(); return; }
+  try {
+    await api(`/api/project/${encodeURIComponent(projectId())}/sync/${conflictSyncId}/resolve`, "POST", {
+      view: "", action,
+    });
+    const fresh = await api(currentUrl());
+    state = { ...state, ...fresh };
+    state.pending_changes = {};
+    state.sync_status = { draft: "synced", framework: "synced", chapters: "synced", characters: "synced" };
+    if (toastDiv) toastDiv.remove();
+    renderAll();
+    summary(action === "accept" ? "已接受冲突变更并落地。" : "已拒绝冲突变更。", true);
+  } catch (e) {
+    summary("裁决失败：" + e.message, false);
+  }
+}
+
+async function toggleLock(view, card) {
+  const next = !state.locks[view];
+  try {
+    await api(`/api/project/${encodeURIComponent(projectId())}/lock`, "POST", { view, locked: next });
+    state.locks[view] = next;
+    renderAll();
+  } catch (e) { summary("锁定操作失败：" + e.message, false); }
+}
+
+// ─────────── 顶部控件事件 ───────────
+
+function bindHeader() {
+  $("btnLoad").onclick = loadState;
+  $("btnRefresh").onclick = loadState;
+  $("modeTabs").querySelectorAll(".tab").forEach(t => {
+    t.onclick = async () => {
+      const mode = t.dataset.mode;
+      try {
+        await api(`/api/project/${encodeURIComponent(projectId())}/sync-mode`, "POST", { mode });
+        state.syncMode = mode;
+        renderModeTabs();
+        summary(mode === "manual" ? "已切换为手动模式：编辑后需点击卡片右上角「同步」。" : "已切换为实时同步模式。", true);
+      } catch (e) { summary("切换模式失败：" + e.message, false); }
+    };
+  });
+}
+
+bindHeader();
+loadState();
+</script>
+</body>
+</html>

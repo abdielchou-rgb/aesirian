@@ -1,0 +1,19 @@
+[
+ {"op":"demo_luoyang","ts":"2026-09-06T10:05:00.000Z","detail":{"ok":true,"ms":497,"args":{"cards":["biographies","framework","chapters"],"sample":true}}},
+ {"op":"demo_loaded","ts":"2026-09-06T10:05:00.900Z","detail":{"bios":2,"sample_diffs":3}},
+ {"op":"transportation","ts":"2026-09-06T10:05:01.310Z","detail":{"score":42.3,"chars":841}},
+ {"op":"edit_four_cards","ts":"2026-09-06T10:05:18.040Z","detail":{"ok":true,"ms":357,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"none"},"decisions":[{"id":"e4d5469ebf47","action":"accept"}]}}},
+ {"op":"rule","ts":"2026-09-06T10:05:18.400Z","detail":{"diff_id":"e4d5469ebf47","action":"accept"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T10:05:35.840Z","detail":{"ok":true,"ms":349,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"none"},"decisions":[{"id":"0ac5a7aadbfc","action":"reject"}]}}},
+ {"op":"rule","ts":"2026-09-06T10:05:36.200Z","detail":{"diff_id":"0ac5a7aadbfc","action":"reject"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T10:05:53.430Z","detail":{"ok":true,"ms":371,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"none"},"decisions":[{"id":"f925b29f4a17","action":"accept"}]}}},
+ {"op":"rule","ts":"2026-09-06T10:05:53.800Z","detail":{"diff_id":"f925b29f4a17","action":"accept"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T10:06:00.500Z","detail":{"ok":true,"ms":418,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"want"}}}},
+ {"op":"edit_four_cards","ts":"2026-09-06T10:06:17.930Z","detail":{"ok":true,"ms":363,"args":{"project":"洛阳星港","edit":{"card":"biographies","field":"none"},"decisions":[{"id":"d4e09a2c7f11","action":"accept"}]}}},
+ {"op":"rule","ts":"2026-09-06T10:06:18.300Z","detail":{"diff_id":"d4e09a2c7f11","action":"accept"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T10:06:24.700Z","detail":{"ok":true,"ms":377,"args":{"project":"洛阳星港","edit":{"card":"framework","field":"framework[2].goal"}}}},
+ {"op":"edit_four_cards","ts":"2026-09-06T10:06:42.530Z","detail":{"ok":true,"ms":355,"args":{"project":"洛阳星港","edit":{"card":"framework","field":"none"},"decisions":[{"id":"b1c8e3a0f2d7","action":"reject"}]}}},
+ {"op":"rule","ts":"2026-09-06T10:06:42.900Z","detail":{"diff_id":"b1c8e3a0f2d7","action":"reject"}},
+ {"op":"edit_four_cards","ts":"2026-09-06T10:06:49.300Z","detail":{"ok":true,"ms":390,"args":{"project":"洛阳星港","edit":{"card":"chapters","field":"chapters[2].summary"}}}},
+ {"op":"transportation","ts":"2026-09-06T10:06:58.000Z","detail":{"score":41.6,"chars":1015}}
+]

@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no">
+<meta name="theme-color" content="#0D0D14">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Crect width='192' height='192' rx='42' fill='%230D0D14'/%3E%3Ctext x='96' y='128' font-size='96' text-anchor='middle' fill='%23C4953C' font-family='serif' font-weight='700'%3E%C3%86%3C/text%3E%3C/svg%3E">
+<title>Æsir 故事簿</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,500;0,600;1,500&display=swap" rel="stylesheet">
+<style>
+:root{--deep:#0D0D14;--surface:#16161F;--elevated:#1E1E2C;--accent:#C4953C;--accent-light:#E0B860;--accent-dim:#8A7530;--teal:#4B8B8B;--text:#E6DDD0;--text2:#948C7A;--text3:#6B6355;--border:#2A2A3A;--radius:12px;--safe:env(safe-area-inset-bottom,0px)}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+html{font-size:16px;height:100%;-webkit-tap-highlight-color:transparent}
+body{font-family:'Inter',sans-serif;background:var(--deep);color:var(--text);height:100%;overflow:hidden;line-height:1.6;-webkit-font-smoothing:antialiased;user-select:none}
+::selection{background:var(--accent);color:var(--deep)}
+#app{height:100%;display:flex;flex-direction:column;max-width:480px;margin:0 auto;overflow:hidden}
+header{height:64px;padding:12px 16px 8px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:linear-gradient(180deg,var(--deep) 60%,transparent)}
+header .brand{display:flex;align-items:center;gap:8px}
+header .brand span{font-family:'Playfair Display',serif;font-weight:600;font-size:1.1rem;background:linear-gradient(135deg,var(--accent-light),var(--accent));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+header .btn{width:36px;height:36px;border-radius:50%;border:none;background:var(--surface);color:var(--text2);font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center}
+header .btn:active{background:var(--elevated);color:var(--text)}
+.main{flex:1;overflow-y:auto;padding:0 16px 8px;-webkit-overflow-scrolling:touch;scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.quick-capture{position:relative;margin-top:4px;margin-bottom:16px}
+.quick-capture textarea{width:100%;min-height:70px;padding:14px 16px;border-radius:var(--radius);border:1px solid var(--border);background:var(--surface);color:var(--text);font-family:'Inter',sans-serif;font-size:0.92rem;line-height:1.7;resize:none;outline:none;transition:border-color .2s}
+.quick-capture textarea:focus{border-color:var(--accent-dim)}
+.quick-capture textarea::placeholder{color:var(--text3)}
+.quick-capture .btn-bar{display:flex;gap:6px;margin-top:8px}
+.quick-capture .btn-bar button{flex:1;padding:10px;border-radius:8px;border:none;font-size:0.85rem;font-weight:600;cursor:pointer;font-family:'Inter',sans-serif}
+.quick-capture .btn-bar .primary{background:var(--accent);color:var(--deep)}
+.quick-capture .btn-bar .primary:active{background:var(--accent-light)}
+.quick-capture .btn-bar .ghost{background:var(--surface);color:var(--text2);border:1px solid var(--border)}
+.quick-capture .btn-bar .ghost:active{background:var(--elevated)}
+.quick-capture .char-count{position:absolute;bottom:52px;right:12px;font-size:0.7rem;color:var(--text3);font-family:monospace}
+.sync-bar{background:var(--surface);border-radius:var(--radius);padding:8px 14px;margin-bottom:12px;border:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:0.75rem}
+.sync-bar .label{color:var(--accent)}
+.sync-bar .status{color:var(--text3)}
+.day-group{margin-bottom:20px}
+.day-group .day-label{font-size:0.78rem;font-weight:500;color:var(--text2);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.day-group .day-label .circle{width:6px;height:6px;border-radius:50%;background:var(--accent)}
+.card{background:var(--surface);border-radius:var(--radius);padding:0;margin-bottom:10px;border:1px solid var(--border);overflow:hidden;cursor:pointer;transition:border-color .2s}
+.card:active{border-color:var(--accent-dim)}
+.card .bar{height:2px;width:100%;background:linear-gradient(90deg,var(--accent),var(--teal))}
+.card .body{padding:12px 14px}
+.card .premise{font-family:'Playfair Display',serif;font-style:italic;font-size:0.9rem;color:var(--accent-light);margin-bottom:6px;line-height:1.6;font-weight:500}
+.card .tone{display:inline-block;padding:1px 8px;border-radius:10px;font-size:0.65rem;border:1px solid var(--accent-dim);color:var(--accent);margin-bottom:4px}
+.card .preview{font-size:0.82rem;color:var(--text2);line-height:1.6;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.card .meta{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border);font-size:0.68rem;color:var(--text3)}
+.empty-state{text-align:center;padding:60px 20px;color:var(--text2)}
+.empty-state .icon{font-size:2.5rem;margin-bottom:12px}
+.empty-state h3{font-family:'Playfair Display',serif;font-weight:500;font-size:1.05rem;margin-bottom:6px;color:var(--text)}
+.empty-state p{font-size:0.82rem;max-width:300px;margin:0 auto auto}
+.bottom-nav{height:calc(64px+var(--safe));padding:6px 12px var(--safe);display:flex;flex-shrink:0;gap:4px;background:linear-gradient(0deg,var(--deep) 60%,transparent)}
+.nav-btn{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:6px;border:none;border-radius:8px;background:transparent;color:var(--text3);cursor:pointer;font-size:0.65rem;font-weight:500;font-family:'Inter',sans-serif}
+.nav-btn .nav-icon{font-size:1.2rem}
+.nav-btn.active{color:var(--accent)}
+.nav-btn:active{transform:scale(0.95)}
+.toast{position:fixed;top:16px;left:50%;transform:translateX(-50%);z-index:100;padding:10px 16px;border-radius:8px;background:var(--elevated);border:1px solid var(--border);color:var(--text);font-size:0.82rem;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,.5);animation:slideDown .2s;max-width:360px;width:calc(100%-32px);pointer-events:none}
+@keyframes slideDown{from{opacity:0;transform:translateX(-50%) translateY(-8px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+.page{display:none;animation:fadeIn .25s}.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@media(min-width:481px){#app{border-left:1px solid var(--border);border-right:1px solid var(--border)}}
+
+@media(min-width:481px){#app{border-left:1px solid var(--border);border-right:1px solid var(--border)}}
+.export-btn{flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--surface);color:var(--text2);font-size:0.82rem;cursor:pointer}
+.export-btn:active{background:var(--elevated)}
+</style>
+</head>
+<body>
+<div id="app">
+<header>
+<div class="brand"><span>✦ Æsir</span></div>
+<button class="btn" id="btn-new" title="新捕获">✎</button>
+</header>
+<div class="main" id="main">
+<div class="page active" id="page-timeline">
+<div class="sync-bar" id="sync-bar" style="display:none">
+<span class="label">✦ 自动同步</span>
+<span class="status" style="color:var(--accent)">✦ 本地存储</span>
+</div>
+<div class="quick-capture" id="capture-box">
+<textarea id="capture-input" placeholder="写下一个零星的念头…一句话、一个场景、一个人物" rows="2"></textarea>
+<div class="char-count" id="char-count">0</div>
+<div class="btn-bar">
+<button class="ghost" id="btn-paste">粘贴进agent</button>
+<button class="primary" id="btn-capture">记录</button>
+</div>
+</div>
+<div id="day-groups"></div>
+<div class="empty-state" id="empty-state">
+<div class="icon">📖</div>
+<h3>还没有故事</h3>
+<p>用 Coze 或 Claude 创作的故事会自动同步到这里。你也可以先记下一个念头。</p>
+</div>
+</div>
+<div class="page" id="page-profile">
+<div style="padding:4px 0">
+<h3 style="font-size:0.78rem;font-weight:500;color:var(--text2);margin-bottom:10px">设备标识</h3>
+<div style="background:var(--surface);border-radius:var(--radius);padding:12px 14px;border:1px solid var(--border);font-size:0.78rem;color:var(--text2);word-break:break-all" id="device-id-display">加载中…</div>
+<h3 style="font-size:0.78rem;font-weight:500;color:var(--text2);margin:16px 0 10px">关于 Æsir</h3>
+<div style="background:var(--surface);border-radius:var(--radius);padding:14px 16px;border:1px solid var(--border);font-size:0.8rem;color:var(--text2);line-height:1.7">
+<p>故事簿自动同步你在 Coze 和 Claude 中创作的全部故事片段。无需复制粘贴，在手机上聊完，打开故事簿就能看到。</p>
+<p style="margin-top:8px">导出数据可在另一台设备导入，实现跨设备迁移。</p>
+</div>
+</div>
+</div>
+</div>
+<nav class="bottom-nav">
+<button class="nav-btn active" data-page="timeline"><span class="nav-icon">✦</span><span>时间线</span></button>
+<button class="nav-btn" data-page="profile"><span class="nav-icon">◉</span><span>我</span></button>
+</nav>
+</div>
+<script>
+// ─── 纯本地模式（localStorage 单设备） ──────
+// 不需要配置任何后端，打开即用。
+// 所有数据存在浏览器 localStorage，不跨设备同步。
+// 需要跨设备时，CloudBase 云函数方案见部署指南。
+
+const STORAGE_KEY='aesir_v7';
+let state={fragments:[],ferment:[],synced:0}
+
+function loadLocal(){
+  try{const r=localStorage.getItem(STORAGE_KEY);if(r)Object.assign(state,JSON.parse(r))}catch(e){}
+}
+function saveLocal(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify({fragments:state.fragments.slice(0,200),ferment:state.ferment.slice(0,20),synced:state.synced}));
+}
+
+// ─── 导出/导入（跨设备迁移） ────────────────
+function exportData(){
+  const data = localStorage.getItem(STORAGE_KEY);
+  if(!data) return;
+  const blob = new Blob([data], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `aesir-backup-${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+  toast('📦 已导出');
+}
+function importData(){
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try{
+        const data = JSON.parse(ev.target.result);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        Object.assign(state, data);
+        render();
+        toast('📥 已导入');
+      }catch(ex){toast('导入失败: 格式错误');}
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+// ─── 接收共享（通过 URL 参数 — 纯本地版用不到，保留结构） ──
+async function receiveShared(){
+  const sid = urlParams.get('story_id');
+  if(!sid) return;
+  // 纯本地模式：从 localStorage 中找
+  const f = state.fragments.find(x=>x.id===sid);
+  if(f){showSharedDetail(f);return}
+  toast('未找到该故事片段');
+}
+
+function showSharedDetail(f){
+  const main=document.getElementById('main')
+  const d=document.createElement('div')
+  d.style.cssText='position:fixed;inset:0;z-index:50;background:var(--deep);padding:20px;overflow-y:auto'
+  d.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="display:flex;gap:8px;align-items:center">
+     <span style="padding:2px 10px;border-radius:20px;border:1px solid var(--accent-dim);color:var(--accent);font-size:0.7rem">${f.tone||''}</span>
+     <span style="font-size:0.7rem;color:var(--text3)">${f.createdAt||''}</span>
+    </div>
+    <button onclick="this.parentElement.parentElement.remove()" style="background:var(--surface);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:0.82rem">关闭</button>
+   </div>
+   <div style="font-family:'Playfair Display',serif;font-style:italic;color:var(--accent-light);margin-bottom:12px">${f.premise||f.idea}</div>
+   <div style="background:var(--surface);border-radius:12px;padding:16px;border:1px solid var(--border);line-height:1.8;font-size:0.88rem;white-space:pre-wrap;margin-bottom:12px">${f.main||''}</div>
+   ${f.breakout?`<div style="font-size:0.7rem;color:var(--accent-dim);margin-bottom:4px;font-family:monospace">破坏约束版本</div><div style="background:var(--surface);border-radius:12px;padding:16px;border:1px solid var(--border);line-height:1.8;font-size:0.88rem;white-space:pre-wrap">${f.breakout}</div>`:''}
+   <button style="width:100%;margin-top:12px;padding:10px;border-radius:8px;border:none;background:var(--accent);color:var(--deep);font-size:0.85rem;font-weight:600;cursor:pointer" onclick="shareCard('${f.id}')">✦ 生成分享卡片</button>`
+  main.appendChild(d)
+}
+
+function shareCard(id){
+  const f = state.fragments.find(x=>x.id===id) || state.fragments[0];
+  if(!f) return;
+  const text = `${f.premise||f.idea}\n\n${(f.main||'').slice(0,200)}…\n\n——来自 Æsir 故事织机`;
+  navigator.clipboard.writeText(text).then(()=>toast('已复制，去粘贴分享吧 ✦')).catch(()=>toast('复制失败'));
+}
+
+function toast(msg){
+  const el=document.createElement('div');el.className='toast';el.textContent=msg;
+  document.getElementById('app').appendChild(el);
+  setTimeout(()=>{el.style.opacity='0';el.style.transition='.2s'},2500);
+  setTimeout(()=>el.remove(),2800);
+}
+
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,10)}
+function fmtDate(iso){
+  if(!iso) return '';
+  const d=new Date(iso);const m=d.getMonth()+1;const day=d.getDate();
+  return `${String(m).padStart(2,'0')}/${String(day).padStart(2,'0')}`;
+}
+function fmtTime(iso){
+  if(!iso) return '';
+  const d=new Date(iso);
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+
+function render(){
+  const items = state.fragments;
+  const groups={};
+  for(const f of items){
+    const d = (f.createdAt||'').slice(0,10);
+    if(!d) continue;
+    if(!groups[d]) groups[d]=[];
+    groups[d].push(f);
+  }
+  const sorted=Object.keys(groups).sort((a,b)=>b.localeCompare(a));
+  const container=document.getElementById('day-groups');
+  const empty=document.getElementById('empty-state');
+  if(sorted.length===0){container.innerHTML='';empty.style.display='block';return}
+  empty.style.display='none';
+  container.innerHTML='';
+  for(const day of sorted){
+    const grp=document.createElement('div');grp.className='day-group';
+    const lbl=document.createElement('div');lbl.className='day-label';
+    lbl.innerHTML=`<span class="circle"></span>${fmtDate(day)}`;
+    grp.appendChild(lbl);
+    for(const f of groups[day]){
+      const card=document.createElement('div');card.className='card';
+      card.innerHTML=`<div class="bar"></div><div class="body"><div class="tone">${f.tone||'📝'}</div><div class="premise">${f.premise||f.idea.slice(0,60)}</div><div class="preview">${(f.main||f.idea).slice(0,120)}${(f.main||f.idea).length>120?'…':''}</div><div class="meta"><span>${f.medium||'--'}</span><span>${fmtTime(f.createdAt)}</span></div></div>`;
+      card.onclick=()=>showSharedDetail(f);
+      grp.appendChild(card);
+    }
+    container.appendChild(grp);
+  }
+}
+
+// ─── 快速捕获 ──────────────────────────────
+document.getElementById('btn-capture').addEventListener('click',()=>{
+  const inp=document.getElementById('capture-input');const text=inp.value.trim();
+  if(!text){toast('先写点什么');return}
+  const entry={id:uid(),idea:text,premise:'',tone:'',main:'',breakout:'',medium:'',createdAt:new Date().toISOString()};
+  state.fragments.unshift(entry);
+  if(state.fragments.length>200)state.fragments=state.fragments.slice(0,200);
+  saveLocal();render();inp.value='';document.getElementById('char-count').textContent='0';
+  toast('已记录 ✦');
+});
+document.getElementById('capture-input').addEventListener('input',function(){
+  document.getElementById('char-count').textContent=this.value.length;
+});
+document.getElementById('btn-paste').addEventListener('click',()=>{
+  const text=document.getElementById('capture-input').value.trim();
+  if(!text){toast('先写点什么');return}
+  navigator.clipboard.writeText(text).then(()=>{toast('已复制，去粘贴到 agent 对话中')}).catch(()=>toast('复制失败'));
+});
+
+// ─── 导航 ──────────────────────────────────
+document.querySelectorAll('.nav-btn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+    document.getElementById('page-'+b.dataset.page).classList.add('active');
+  });
+});
+document.getElementById('btn-new').addEventListener('click',()=>{
+  document.getElementById('capture-input').focus();
+  document.querySelectorAll('.nav-btn').forEach(x=>x.classList.remove('active'));
+  document.querySelector('[data-page="timeline"]').classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-timeline').classList.add('active');
+});
+
+// ─── NSEF 导出（桥接到 Æsirian Core） ──────
+function exportNSEF(id) {
+  const f = state.fragments.find(x=>x.id===id) || state.fragments[0];
+  if(!f) { toast('先选一个故事'); return; }
+  const profile = state.profile || {tones:{},total:0};
+  const nsef = {
+    package_id: f.id,
+    created_at: new Date().toISOString(),
+    source: "aesir",
+    premise: f.premise || f.idea.slice(0,80),
+    unit_text: f.main || f.idea,
+    structure: {inciting_event:"",turning_point:"",crisis:"",climax:"",resolution:""},
+    arc_type: "three_act",
+    genre_contract: null,
+    characters: [
+      {name:"主角",role:"",beliefs:{},goals:[],secrets:[],personality_traits:{}},
+      {name:"配角",role:"",beliefs:{},goals:[],secrets:[],personality_traits:{}}
+    ],
+    open_threads: [],
+    tone: f.tone || "温暖治愈",
+    conflict: "关系冲突",
+    style_fingerprint: {
+      tone_distribution: profile.tones || {},
+      conflict_preference: [],
+      sentence_length_avg: 0,dialogue_ratio: 0,sensory_channel_bias: {},pov_preference: ""
+    },
+    event_cooldown: {}
+  };
+  // 发送到本地 Core 引擎
+  fetch('http://127.0.0.1:8765/import-from-pwa', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify(nsef)
+  }).then(r=>r.json()).then(data=>{
+    if(data.project_id) {
+      toast('✦ 已推送到 Æsirian Core');
+      // 打开 Core IDE 页面
+      window.open('http://127.0.0.1:8765/ide/'+data.project_id, '_blank');
+    }
+  }).catch(()=>{
+    // 离线模式：导出到文件
+    const blob = new Blob([JSON.stringify(nsef,null,2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `nsef-${f.id.slice(0,8)}.json`;
+    a.click();
+    toast('📦 Core 未运行，NSEF 已导出到文件');
+  });
+}
+
+// 覆写 showSharedDetail 添加 NSEF 按钮
+const _origShowDetail = window.showSharedDetail || function(){};
+function showSharedDetailEnhanced(f){
+  // 调用原始逻辑
+  const main=document.getElementById('main');
+  const d=document.createElement('div');
+  d.style.cssText='position:fixed;inset:0;z-index:50;background:var(--deep);padding:20px;overflow-y:auto';
+  d.innerHTML=`<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+    <div style="display:flex;gap:8px;align-items:center">
+     <span style="padding:2px 10px;border-radius:20px;border:1px solid var(--accent-dim);color:var(--accent);font-size:0.7rem">${f.tone||''}</span>
+     <span style="font-size:0.7rem;color:var(--text3)">${f.createdAt||''}</span>
+    </div>
+    <button onclick="this.parentElement.parentElement.remove()" style="background:var(--surface);border:1px solid var(--border);color:var(--text2);padding:6px 14px;border-radius:8px;cursor:pointer;font-size:0.82rem">关闭</button>
+   </div>
+   <div style="font-family:'Playfair Display',serif;font-style:italic;color:var(--accent-light);margin-bottom:12px">${f.premise||f.idea}</div>
+   <div style="background:var(--surface);border-radius:12px;padding:16px;border:1px solid var(--border);line-height:1.8;font-size:0.88rem;white-space:pre-wrap;margin-bottom:12px">${f.main||''}</div>
+   ${f.breakout?`<div style="font-size:0.7rem;color:var(--accent-dim);margin-bottom:4px;font-family:monospace">破坏约束版本</div><div style="background:var(--surface);border-radius:12px;padding:16px;border:1px solid var(--border);line-height:1.8;font-size:0.88rem;white-space:pre-wrap">${f.breakout}</div>`:''}
+   <div style="display:flex;gap:6px;margin-top:8px">
+     <button style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--accent);background:transparent;color:var(--accent);font-size:0.85rem;font-weight:600;cursor:pointer" onclick="exportNSEF('${f.id}')">⚡ 推送到 Core</button>
+     <button style="flex:1;padding:10px;border-radius:8px;border:none;background:var(--accent);color:var(--deep);font-size:0.85rem;font-weight:600;cursor:pointer" onclick="shareCard('${f.id}')">✦ 生成分享卡片</button>
+   </div>`;
+  main.appendChild(d);
+}
+window.showSharedDetail = showSharedDetailEnhanced;
+
+// ─── Agent 接口 ────────────────────────────
+window.addStoryFragment = function(f){
+  const entry={id:f.id||uid(),idea:f.idea||'',premise:f.premise||'',tone:f.tone||'',main:f.main||'',breakout:f.breakout||'',medium:f.medium||'',createdAt:f.createdAt||new Date().toISOString()};
+  if(state.fragments.find(x=>x.id===entry.id)) return;
+  state.fragments.unshift(entry);
+  if(state.fragments.length>200)state.fragments=state.fragments.slice(0,200);
+  if(f.tone){state.profile=(state.profile||{tones:{},total:0});state.profile.tones[f.tone]=(state.profile.tones[f.tone]||0)+1;state.profile.total++;}
+  saveLocal();render();
+};
+
+// ─── 初始化 ────────────────────────────────
+loadLocal();
+document.getElementById('device-id-display').textContent = '本地存储 · 导出/导入可跨设备迁移';
+
+render();
+
+// 在 profile 页添加导出/导入按钮
+const profileContent = document.getElementById('profile-content').parentElement;
+if(profileContent){
+  const btnDiv = document.createElement('div');
+  btnDiv.style.cssText = 'display:flex;gap:8px;margin-top:10px';
+  btnDiv.innerHTML = '<button onclick="exportData()" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text2);font-size:0.82rem;cursor:pointer">📦 导出数据</button><button onclick="importData()" style="flex:1;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg-surface);color:var(--text2);font-size:0.82rem;cursor:pointer">📥 导入数据</button>';
+  profileContent.parentElement.insertBefore(btnDiv, profileContent.nextSibling);
+}
+
+console.log('✦ Æsir 故事簿加载完成');
+console.log('  本地存储模式 · 导出/导入可跨设备迁移');
+console.log(`  Æsir 故事簿 · 本地存储模式`);
+
+// PWA Service Worker 注册（#20）
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js')
+    .then(() => console.log('[PWA] Service Worker 注册成功 — 离线可用'))
+    .catch(e => console.log('[PWA] SW 注册跳过:', e.message));
+}
+</script>
+</body>
+</html>

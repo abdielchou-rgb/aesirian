@@ -1,0 +1,126 @@
+# Æsirian M1-1 稳定基线 CI
+# 依据 docs/engineering-plan-v11.md §3.1 M1-1：PR 自动跑 pytest（排除 L3 浏览器）+ ruff + mypy(core/)。
+# 退出条件：PR 自动运行；任何 gate 失败即红。
+#
+# 设计说明（存量债处理）：
+# 1) 全仓 ruff 基线当前不绿（约 4100 项，多为 .scratch/archive 等非工程目录与老代码风格债），
+#    因此 ruff gate 采用「变更文件增量」语义：PR 不允许新增 lint 问题；全量存量债另行治理（建议 M2 之后）。
+# 2) 全量 mypy core/ 基线当前约 410 项存量类型债（无注解/第三方 stub 缺失等，与本轮 7 处沙箱修复无关），
+#    因此 mypy gate 同样采用「core/ 变更文件增量」语义，避免 PR 被历史债阻塞。
+#    存量类型债清理后，可将下述 mypy 命令换回全量：mypy core/ --ignore-missing-imports
+# 3) 项目测试不需要 editable 安装（tests 直接从仓库根 import core/...），且 pyproject requires-python=">=3.11"，
+#    因此 Python 3.10 矩阵成员使用 requirements.txt 直装 + 源码根运行，不改动 pyproject/uv.lock。
+# 4) 排除 tests/l3_browser_test.py（需 Windows + Electron，CI Ubuntu 上不可跑）。
+# 5) transformers NER 在无网络 runner 上快速降级：设置 HF_HUB_OFFLINE / TRANSFORMERS_OFFLINE。
+
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  HF_HUB_OFFLINE: "1"
+  TRANSFORMERS_OFFLINE: "1"
+  PY_COLORS: "1"
+
+jobs:
+  # ---- 主矩阵：pytest 109 绿基线（Python 3.10 / 3.11 / 3.12，M1-2 兼容矩阵真实验证） ----
+  test:
+    name: pytest (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: requirements.txt
+
+      - name: Install dependencies (requirements.txt, no editable install)
+        run: pip install -r requirements.txt
+
+      - name: Verify 7 sandbox fixes (roundtable-20260905 附录 A, M1-2)
+        run: python tools/compat_matrix_check.py
+
+      - name: Run pytest suite (L3 browser excluded)
+        run: python -m pytest tests/ --ignore=tests/l3_browser_test.py -q
+
+  # ---- ruff：变更文件增量 gate（M1-1） ----
+  ruff:
+    name: ruff (changed files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install "ruff>=0.4"
+
+      - name: Lint changed Python files (delta gate; full-repo baseline is dirty by design)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${GITHUB_BASE_REF:-main}"
+          if git rev-parse --verify --quiet "origin/${BASE}" > /dev/null 2>&1; then
+            RANGE="origin/${BASE}...HEAD"
+          else
+            RANGE="HEAD~1...HEAD"
+          fi
+          mapfile -t FILES < <(git diff --name-only --diff-filter=ACM "${RANGE}" -- core tests bridge plugins tools '*.py' || true)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "::notice::No changed Python files under lint scope; ruff gate skipped."
+            exit 0
+          fi
+          ruff check --output-format=github "${FILES[@]}"
+
+  # ---- mypy：core/ 变更文件增量 gate（M1-1） ----
+  mypy:
+    name: mypy (changed core files)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install mypy
+        run: pip install "mypy>=1.10"
+
+      - name: Type-check changed core Python files (delta gate; legacy debt tracked separately)
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="${GITHUB_BASE_REF:-main}"
+          if git rev-parse --verify --quiet "origin/${BASE}" > /dev/null 2>&1; then
+            RANGE="origin/${BASE}...HEAD"
+          else
+            RANGE="HEAD~1...HEAD"
+          fi
+          mapfile -t FILES < <(git diff --name-only --diff-filter=ACM "${RANGE}" -- core '*.py' || true)
+          if [ ${#FILES[@]} -eq 0 ]; then
+            echo "::notice::No changed core Python files; mypy gate skipped."
+            exit 0
+          fi
+          mypy --follow-imports=skip --ignore-missing-imports "${FILES[@]}"
