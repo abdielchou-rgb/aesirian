@@ -256,7 +256,7 @@ class ProjectStore:
                 chapter.title = title
                 chapter.text = text
                 chapter.word_count = word_count
-                chapter.audit_report_json = chapter_data["audit_report_json"]
+                chapter.audit_report_json = str(chapter_data["audit_report_json"])
                 session.add(chapter)
                 session.commit()
                 session.refresh(chapter)
