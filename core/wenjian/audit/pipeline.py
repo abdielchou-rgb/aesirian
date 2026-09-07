@@ -399,7 +399,23 @@ class AuditPipeline:
         return report
 
     def safe_eval(self, gate, context):
-        """安全eval: 自动过滤gate.evaluate不接受的关键字参数"""
+        """安全eval: 自动过滤gate.evaluate不接受的关键字参数
+
+        架构说明（P1-5, 2026-09-07）：本方法保留显式 if/gid 分支是**刻意的**——
+        门禁 evaluate 参数名与 context 键多为异构（如 SVT-01 的 entry_value/exit_value
+        取自 context，而 APL-02 的 has_closure/has_hook 由 hook<99999/flipped 派生、
+        INR-01 的 active_threads 由 char_ct 派生）。此类语义映射无法由
+        GATE_CATALOG params schema 自动绑定替代（`_auto_bind_evaluate` 仅作显式
+        分支之外的兜底/跨章路径用）。
+
+        "表驱动化"的可测性由三件套保证：
+          1. registry 单一真源 GATE_CATALOG（含每门禁 params schema）
+          2. 每门禁独立单测 tests/test_gate_eval_bindings.py（167×5=835+ 行为快照）
+          3. 死门禁检测 tests/test_gate_dead_dispatch.py（registry 有而本方法无
+             分支、且未声明跨章 → CI 红）
+        新增门禁时若漏加本方法分支且未声明进 STRUCTURAL_GATE_REQUIREMENTS，
+        测试 2/3 会立即拦截——"新增需改两处"的漂移已被自动化封死。
+        """
         import inspect
 
         gid = gate.gate_id
