@@ -575,32 +575,6 @@ class Orchestrator:
             "cold_available_patterns": project.cooldown.get_cold_patterns()[:5],
         }
 
-        # 冷却矩阵：推荐使用的叙事模式
-        recommended_patterns = project.cooldown.get_recommendations(3)
-
-        # 高张力点（取前3）
-        hot_tensions = sorted(tension, key=lambda t: t.intensity, reverse=True)[:3]
-
-        return {
-            "tension_points": [
-                {
-                    "description": t.description,
-                    "intensity": t.intensity,
-                    "type": t.type.value,
-                    "suggestion": t.suggestion,
-                    "involved": t.involved_characters,
-                }
-                for t in hot_tensions
-            ],
-            "character_tendencies": [
-                {"character": t.character_id, "action": t.action, "strength": t.strength}
-                for t in tendencies
-            ],
-            "reader_state": reader_state,
-            "recommended_patterns": recommended_patterns,
-            "cold_available_patterns": project.cooldown.get_cold_patterns()[:5],
-        }
-
     def validate_generated_text(self, project_id: str, text: str) -> dict:
         """校验一段AI生成的文本——生成前门禁（G1-G5）"""
         project = self._get_or_load_project(project_id)
